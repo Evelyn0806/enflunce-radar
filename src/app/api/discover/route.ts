@@ -33,8 +33,12 @@ async function discoverKols(keywords: string[], days: number = 7): Promise<strin
         for (const t of (json.data ?? []) as { author_id: string }[]) {
           authorIds.add(t.author_id)
         }
+      } else {
+        console.error(`Twitter API error (strategy 1): ${res.status}`, await res.text())
       }
-    } catch {}
+    } catch (e) {
+      console.error('Strategy 1 error:', e)
+    }
   }
 
   // Strategy 2: Bio search (finds KOLs with keywords in bio)
@@ -54,8 +58,12 @@ async function discoverKols(keywords: string[], days: number = 7): Promise<strin
       for (const t of (json.data ?? []) as { author_id: string }[]) {
         authorIds.add(t.author_id)
       }
+    } else {
+      console.error(`Twitter API error (strategy 2): ${res.status}`, await res.text())
     }
-  } catch {}
+  } catch (e) {
+    console.error('Strategy 2 error:', e)
+  }
 
   return Array.from(authorIds)
 }
@@ -171,6 +179,15 @@ export async function POST(req: NextRequest) {
 
     // 1. Discover KOLs using multi-strategy approach
     const authorIds = await discoverKols(keywords, time_range)
+
+    if (authorIds.length === 0) {
+      return NextResponse.json({
+        error: 'No KOLs found. Check server logs for Twitter API errors.',
+        results: [],
+        total: 0,
+        debug: { authorIds: 0, bearer_configured: !!BEARER }
+      }, { status: 200 })
+    }
 
     // 2. Get tweet counts per author (keyword relevance signal)
     const tweetCounts = await getAuthorTweetCounts(query, authorIds)
