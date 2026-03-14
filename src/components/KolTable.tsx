@@ -40,7 +40,6 @@ export default function KolTable({ kols }: Props) {
             <th>粉丝数</th>
             <th>互动率</th>
             <th>最近发帖</th>
-            <th>XHunt</th>
             <th>角色</th>
             <th>状态</th>
             <th>标记</th>
@@ -114,23 +113,6 @@ export default function KolTable({ kols }: Props) {
                 {/* Last post */}
                 <td style={{ fontSize: 12, color: '#64748b' }}>
                   {formatDate(kol.last_post_at)}
-                </td>
-
-                {/* XHunt */}
-                <td style={{ fontSize: 12 }}>
-                  {kol.xhunt_rank_zh && (
-                    <span title="中文排名" style={{ color: '#f59e0b', marginRight: 4 }}>
-                      ZH#{kol.xhunt_rank_zh}
-                    </span>
-                  )}
-                  {kol.xhunt_rank_en && (
-                    <span title="英文排名" style={{ color: '#3b82f6' }}>
-                      EN#{kol.xhunt_rank_en}
-                    </span>
-                  )}
-                  {!kol.xhunt_rank_zh && !kol.xhunt_rank_en && (
-                    <span style={{ color: '#cbd5e1' }}>—</span>
-                  )}
                 </td>
 
                 {/* Roles */}
