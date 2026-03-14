@@ -32,7 +32,7 @@ export default function DiscoverClient() {
   const router = useRouter()
 
   // Search state
-  const [keywords, setKeywords] = useState<string[]>(['Polymarket', 'prediction market'])
+  const [keywords, setKeywords] = useState<string[]>([])
   const [kwInput, setKwInput] = useState('')
   const [minFollowers, setMinFollowers] = useState(5000)
   const [timeRange, setTimeRange] = useState(30)
