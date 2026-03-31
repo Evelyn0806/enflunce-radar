@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { computeTier } from '@/lib/utils'
-
-const BEARER = process.env.TWITTER_BEARER_TOKEN!
-
-function xHeaders() {
-  return { Authorization: `Bearer ${BEARER}` }
-}
+import { getTwikitUser, TwikitUser } from '@/lib/twikit'
+import { fetchXUsersByHandles } from '@/lib/x-api-fallback'
 
 async function fetchUsersByHandles(handles: string[]) {
-  if (handles.length === 0) return []
-
-  const usernames = handles.map(h => h.replace('@', '').toLowerCase()).join(',')
-  const params = new URLSearchParams({
-    usernames,
-    'user.fields': 'public_metrics,description,profile_image_url',
-  })
-
-  const res = await fetch(
-    `https://api.twitter.com/2/users/by?${params}`,
-    { headers: xHeaders() }
+  const users = await Promise.all(
+    handles.map(async (handle) => {
+      try {
+        return await getTwikitUser(handle)
+      } catch {
+        return null
+      }
+    })
   )
 
-  if (!res.ok) return []
-  const json = await res.json()
-  return json.data ?? []
+  const twikitUsers = users.filter((user): user is TwikitUser => Boolean(user))
+  if (twikitUsers.length === handles.length) return twikitUsers
+
+  const missingHandles = handles.filter((handle) => !twikitUsers.some((user) => user.screen_name.toLowerCase() === handle.replace(/^@/, '').toLowerCase()))
+  const fallbackUsers = await fetchXUsersByHandles(missingHandles)
+  return [...twikitUsers, ...fallbackUsers]
 }
 
 export async function POST(req: NextRequest) {
@@ -36,15 +32,15 @@ export async function POST(req: NextRequest) {
 
   const users = await fetchUsersByHandles(handles)
 
-  const rows = users.map((u: any) => ({
-    x_handle: u.username.toLowerCase(),
+  const rows = users.map((u) => ({
+    x_handle: u.screen_name.toLowerCase(),
     display_name: u.name,
     avatar_url: u.profile_image_url?.replace('_normal', '_400x400') ?? null,
     bio: u.description ?? null,
-    followers_count: u.public_metrics.followers_count,
-    following_count: u.public_metrics.following_count,
-    posts_count: u.public_metrics.tweet_count,
-    tier: computeTier(u.public_metrics.followers_count, null),
+    followers_count: u.followers_count,
+    following_count: u.following_count,
+    posts_count: u.statuses_count,
+    tier: computeTier(u.followers_count, null),
     status: 'pending',
     status_flag: 'none',
     language: 'en',

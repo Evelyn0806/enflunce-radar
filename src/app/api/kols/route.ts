@@ -1,34 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { computeTier, isSilent } from '@/lib/utils'
+import { computeTier } from '@/lib/utils'
+import { getTwikitUser } from '@/lib/twikit'
+import { fetchXUserByHandle } from '@/lib/x-api-fallback'
 import { Language } from '@/types'
 
-// ============================================================
-// X API v2 helper — fetches public user fields
-// Requires: TWITTER_BEARER_TOKEN in env
-// ============================================================
 async function fetchXProfile(handle: string) {
-  const token = process.env.TWITTER_BEARER_TOKEN
-  if (!token) return null
-
-  const url = `https://api.twitter.com/2/users/by/username/${handle}?user.fields=public_metrics,description,profile_image_url,created_at`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
-  })
-
-  if (!res.ok) return null
-  const json = await res.json()
-  const u = json.data
-  if (!u) return null
-
-  return {
-    display_name: u.name as string,
-    avatar_url: (u.profile_image_url as string)?.replace('_normal', '_400x400'),
-    bio: u.description as string,
-    followers_count: u.public_metrics.followers_count as number,
-    following_count: u.public_metrics.following_count as number,
-    posts_count: u.public_metrics.tweet_count as number,
+  try {
+    const u = await getTwikitUser(handle)
+    return {
+      display_name: u.name,
+      avatar_url: u.profile_image_url?.replace('_normal', '_400x400') ?? null,
+      bio: u.description,
+      followers_count: u.followers_count,
+      following_count: u.following_count,
+      posts_count: u.statuses_count,
+    }
+  } catch {
+    const u = await fetchXUserByHandle(handle)
+    if (!u) return null
+    return {
+      display_name: u.name,
+      avatar_url: u.profile_image_url?.replace('_normal', '_400x400') ?? null,
+      bio: u.description,
+      followers_count: u.followers_count,
+      following_count: u.following_count,
+      posts_count: u.statuses_count,
+    }
   }
 }
 

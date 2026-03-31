@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "twikit:probe": ".venv/bin/python3 scripts/twikit_bridge.py user elonmusk"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

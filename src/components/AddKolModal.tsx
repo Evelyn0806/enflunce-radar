@@ -100,7 +100,7 @@ export default function AddKolModal({ onClose }: Props) {
         </form>
 
         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 14, lineHeight: 1.6 }}>
-          添加后系统会自动从 X API 拉取基础数据（粉丝数、互动率、最近发帖时间）
+          添加后系统会自动通过 Twikit 拉取基础数据（粉丝数、最近发帖时间等）
         </p>
       </div>
     </div>

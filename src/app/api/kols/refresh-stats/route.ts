@@ -1,27 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-
-const BEARER = process.env.TWITTER_BEARER_TOKEN!
-
-function xHeaders() {
-  return { Authorization: `Bearer ${BEARER}` }
-}
-
-async function fetchUserTweets(userId: string) {
-  const params = new URLSearchParams({
-    max_results: '10',
-    'tweet.fields': 'public_metrics,created_at',
-  })
-
-  const res = await fetch(
-    `https://api.twitter.com/2/users/${userId}/tweets?${params}`,
-    { headers: xHeaders() }
-  )
-
-  if (!res.ok) return null
-  const json = await res.json()
-  return json.data ?? []
-}
+import { getTwikitUser, getTwikitUserTweets } from '@/lib/twikit'
+import { fetchXRecentTweetsByHandle, fetchXUserByHandle } from '@/lib/x-api-fallback'
 
 export async function POST(req: NextRequest) {
   const { kol_ids }: { kol_ids: string[] } = await req.json()
@@ -43,19 +23,23 @@ export async function POST(req: NextRequest) {
 
       if (!kol) continue
 
-      // Get user ID from X API
-      const userRes = await fetch(
-        `https://api.twitter.com/2/users/by/username/${kol.x_handle}`,
-        { headers: xHeaders() }
-      )
-      if (!userRes.ok) continue
+      let user = null
+      try {
+        user = await getTwikitUser(kol.x_handle)
+      } catch {
+        user = await fetchXUserByHandle(kol.x_handle)
+      }
 
-      const userData = await userRes.json()
-      const userId = userData.data?.id
+      const userId = user?.id
       if (!userId) continue
 
       // Fetch recent tweets
-      const tweets = await fetchUserTweets(userId)
+      let tweets = []
+      try {
+        tweets = await getTwikitUserTweets(userId, 10)
+      } catch {
+        tweets = await fetchXRecentTweetsByHandle(kol.x_handle, 10)
+      }
       if (!tweets || tweets.length === 0) continue
 
       // Calculate avg engagement rate
@@ -63,11 +47,10 @@ export async function POST(req: NextRequest) {
       let lastPostAt = null
 
       for (const tweet of tweets) {
-        const metrics = tweet.public_metrics
-        const engagement = (metrics.like_count + metrics.retweet_count + metrics.reply_count)
+        const engagement = tweet.favorite_count + tweet.retweet_count + tweet.reply_count
         totalEngagement += engagement
 
-        if (!lastPostAt || new Date(tweet.created_at) > new Date(lastPostAt)) {
+        if (!lastPostAt || new Date(tweet.created_at ?? 0) > new Date(lastPostAt)) {
           lastPostAt = tweet.created_at
         }
       }

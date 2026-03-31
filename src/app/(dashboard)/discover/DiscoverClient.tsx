@@ -62,6 +62,7 @@ export default function DiscoverClient() {
     if (!res.ok) {
       setError(json.error ?? '搜索失败')
     } else {
+      setError(json.warning ?? '')
       setResults(json.results ?? [])
       // Init row states with auto-detected language
       const map = new Map<string, RowState>()
@@ -143,7 +144,7 @@ export default function DiscoverClient() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>KOL 发现</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-          输入关键词，从 X 实时发现相关 KOL，打标后直接进入 CRM
+          输入关键词，筛出符合画像的 Prediction Market KOL / KOC，打标后直接进入 CRM
         </p>
       </div>
 
@@ -275,8 +276,9 @@ export default function DiscoverClient() {
                   <th style={{ width: 40 }}></th>
                   <th>KOL</th>
                   <th>粉丝数</th>
-                  <th>Tier</th>
-                  <th>关键词发帖</th>
+                  <th>相关度</th>
+                  <th>主题命中</th>
+                  <th>近期互动</th>
                   <th>私域</th>
                   <th>语区</th>
                   <th>标识</th>
@@ -312,7 +314,17 @@ export default function DiscoverClient() {
                                 <span style={{ fontSize: 10, color: '#64748b', marginLeft: 6 }}>已入库</span>
                               )}
                             </div>
-                            <div style={{ fontSize: 11, color: '#94a3b8' }}>@{r.x_handle}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <span>@{r.x_handle}</span>
+                              <a href={r.profile_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
+                                X 主页
+                              </a>
+                              {r.community_links[0] && (
+                                <a href={r.community_links[0]} target="_blank" rel="noreferrer" style={{ color: '#16a34a', textDecoration: 'none' }}>
+                                  私域链接
+                                </a>
+                              )}
+                            </div>
                             {r.bio && (
                               <div style={{ fontSize: 11, color: '#64748b', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {r.bio}
@@ -327,24 +339,41 @@ export default function DiscoverClient() {
                         {formatNumber(r.followers_count)}
                       </td>
 
-                      {/* Tier */}
+                      {/* Relevance */}
                       <td>
-                        <span className={`badge tier-${r.tier}`}>{r.tier}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className={`badge tier-${r.tier}`}>{r.tier}</span>
+                          <span style={{ fontSize: 12, color: '#0f172a', fontWeight: 600 }}>
+                            {r.relevance_score}
+                          </span>
+                        </div>
                       </td>
 
-                      {/* Keyword post count */}
+                      {/* Topic signal */}
+                      <td style={{ fontSize: 12, color: '#334155' }}>
+                        <div>提及 {r.prediction_market_signal}</div>
+                        <div style={{ color: '#64748b' }}>近期 {r.recent_topic_signal} 条</div>
+                        <div style={{ color: '#64748b' }}>工具 {r.bio_tool_signal}</div>
+                      </td>
+
+                      {/* Engagement */}
                       <td style={{ fontSize: 13 }}>
-                        <span style={{ color: r.keyword_post_count >= 3 ? '#16a34a' : '#64748b' }}>
-                          {r.keyword_post_count} 条
+                        <span style={{ color: r.avg_engagement >= 100 ? '#16a34a' : '#64748b' }}>
+                          {formatNumber(r.avg_engagement)}
                         </span>
                       </td>
 
                       {/* Private community */}
-                      <td style={{ fontSize: 13, textAlign: 'center' }}>
+                      <td style={{ fontSize: 12 }}>
                         {r.has_private_community ? (
-                          <span title={r.community_links.join('\n')} style={{ cursor: 'help' }}>
-                            ✅ {r.community_links.length > 0 && `(${r.community_links.length})`}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span>✅ {r.community_links.length > 0 && `(${r.community_links.length})`}</span>
+                            {r.community_links.slice(0, 2).map((link) => (
+                              <a key={link} href={link} target="_blank" rel="noreferrer" style={{ color: '#16a34a', textDecoration: 'none' }}>
+                                {link}
+                              </a>
+                            ))}
+                          </div>
                         ) : (
                           <span style={{ color: '#cbd5e1' }}>—</span>
                         )}

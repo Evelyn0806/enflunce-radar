@@ -74,7 +74,7 @@ export default async function KolsPage({
           { label: '总计', value: total, sub: 'KOL / KOC' },
           { label: '合作中', value: active, sub: 'Active' },
           { label: 'Tier A', value: tierA, sub: '高价值' },
-          { label: '近期活跃', value: rapidGrowth, sub: '7天数据增长' },
+          { label: '高潜候选', value: rapidGrowth, sub: '粉丝 10K+' },
         ].map((s) => (
           <div key={s.label} className="stat-card">
             <div className="stat-value">{s.value}</div>
