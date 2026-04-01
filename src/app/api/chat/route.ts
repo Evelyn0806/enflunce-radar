@@ -61,14 +61,19 @@ ${kolSummary}
     { role: 'user', content: message },
   ]
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages,
-  })
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+    })
 
-  const reply = response.content[0].type === 'text' ? response.content[0].text : ''
-
-  return NextResponse.json({ reply })
+    const reply = response.content[0].type === 'text' ? response.content[0].text : ''
+    return NextResponse.json({ reply })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    console.error('Chat API error:', msg)
+    return NextResponse.json({ error: `AI 请求失败: ${msg}` }, { status: 500 })
+  }
 }
