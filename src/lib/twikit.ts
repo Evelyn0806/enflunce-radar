@@ -1,5 +1,13 @@
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_URL
-const baseUrl = process.env.TWIKIT_INTERNAL_API_URL ?? (siteUrl ? `${siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`}/api/twikit` : 'http://localhost:3000/api/twikit')
+function resolveTwikitUrl(): string {
+  if (process.env.TWIKIT_INTERNAL_API_URL) return process.env.TWIKIT_INTERNAL_API_URL
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_URL
+  if (site) {
+    const origin = site.startsWith('http') ? site : `https://${site}`
+    return `${origin}/api/twikit`
+  }
+  return 'http://localhost:3000/api/twikit'
+}
+const baseUrl = resolveTwikitUrl()
 
 async function callTwikit<T>(action: string, payload: unknown): Promise<T> {
   const res = await fetch(baseUrl, {
