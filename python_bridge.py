@@ -334,3 +334,12 @@ async def get_user_tweets(client: Client, user_id: str, count: int = 20) -> list
             'user': user_from_raw(user_raw),
         })
     return results
+
+
+async def get_user_following(client: Client, user_id: str, count: int = 50) -> list[dict]:
+    """Get users that a given user follows. Uses the twikit client's built-in method."""
+    try:
+        following = await client.get_user_following(user_id, count)
+        return [user_to_dict(u) for u in following]
+    except Exception:
+        return []

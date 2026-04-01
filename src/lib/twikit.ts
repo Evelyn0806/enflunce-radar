@@ -73,3 +73,7 @@ export function searchTwikitUsers(query: string, count = 20) {
 export function getTwikitUserTweets(userId: string, count = 20) {
   return callTwikit<TwikitTweet[]>('user-tweets', { user_id: userId, count })
 }
+
+export function getTwikitUserFollowing(userId: string, count = 50) {
+  return callTwikit<TwikitUser[]>('user-following', { user_id: userId, count })
+}

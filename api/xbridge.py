@@ -5,7 +5,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler
 
 try:
-    from python_bridge import create_client_from_cookie_dict, get_user_by_screen_name, get_user_tweets, search_tweets, search_users
+    from python_bridge import create_client_from_cookie_dict, get_user_by_screen_name, get_user_tweets, get_user_following, search_tweets, search_users
     IMPORT_ERROR = None
 except Exception as e:
     IMPORT_ERROR = traceback.format_exc()
@@ -60,6 +60,8 @@ class handler(BaseHTTPRequestHandler):
                 result = asyncio.run(search_users(client, payload['query'], int(payload.get('count', 20))))
             elif action == 'user-tweets':
                 result = asyncio.run(get_user_tweets(client, payload['user_id'], int(payload.get('count', 20))))
+            elif action == 'user-following':
+                result = asyncio.run(get_user_following(client, payload['user_id'], int(payload.get('count', 50))))
             else:
                 send_json(self, 404, {'error': 'Not found'})
                 return

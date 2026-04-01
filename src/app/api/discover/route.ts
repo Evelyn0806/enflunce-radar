@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { computeTier, detectLanguage } from '@/lib/utils'
 import { Language, Tier } from '@/types'
-import { getTwikitUserTweets, searchTwikitTweets, searchTwikitUsers, tryGetTwikitUser } from '@/lib/twikit'
+import { getTwikitUserTweets, getTwikitUserFollowing, searchTwikitTweets, searchTwikitUsers, tryGetTwikitUser } from '@/lib/twikit'
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle, hasXApiFallback } from '@/lib/x-api-fallback'
 import {
   BRAND_HANDLE_HINTS,
@@ -158,8 +158,9 @@ function isLikelyProjectAccount(
 const SEARCH_SAMPLE_COUNT = 20
 const ENRICH_CANDIDATE_LIMIT = 5
 const DISCOVER_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour cache
-const MAX_SEARCH_TERMS = 3
-const REQUEST_DELAY_MS = 2000
+const MAX_SEARCH_CALLS = 2 // max search API calls (rate-limited)
+const GRAPH_EXPAND_SEEDS = 3 // expand following from top N seed KOLs
+const REQUEST_DELAY_MS = 1500
 
 type DiscoverResponse = {
   results: DiscoveryResult[]
@@ -225,6 +226,64 @@ async function fallbackUsersForTerms(keywords: string[]) {
   const handles = fallbackHandlesForKeywords(keywords)
   const users = await Promise.all(handles.map((handle) => tryGetTwikitUser(handle)))
   return users.filter(Boolean)
+}
+
+async function expandViaFollowing(
+  seedUserIds: string[],
+  minFollowers: number,
+  originalKeywords: string[],
+  seen: Map<string, DiscoveryResult>,
+) {
+  for (const userId of seedUserIds) {
+    try {
+      await delay(REQUEST_DELAY_MS)
+      const following = await getTwikitUserFollowing(userId, 50)
+      for (const user of following) {
+        if (seen.has(user.id)) continue
+        if (user.followers_count < minFollowers) continue
+        if (isLikelyProjectAccount(user, originalKeywords)) continue
+
+        const result = baseResultFromUser(user)
+        result.keyword_post_count += 1 // found via social graph
+        scoreBioAndIdentity(result, `${result.display_name}\n${result.bio}`)
+        seen.set(user.id, result)
+      }
+    } catch {
+      // user-following may not be supported, skip silently
+    }
+  }
+}
+
+async function expandFromDbKols(
+  keywords: string[],
+  minFollowers: number,
+  seen: Map<string, DiscoveryResult>,
+) {
+  // Find existing KOLs related to keywords to use as graph seeds
+  const clauses = keywords
+    .flatMap((kw) => [`bio.ilike.%${kw}%`, `display_name.ilike.%${kw}%`])
+  if (clauses.length === 0) return []
+
+  const { data } = await supabase
+    .from('kols')
+    .select('x_handle')
+    .or(clauses.join(','))
+    .order('followers_count', { ascending: false })
+    .limit(5)
+
+  const seedIds: string[] = []
+  for (const kol of data ?? []) {
+    try {
+      const user = await tryGetTwikitUser(kol.x_handle)
+      if (user?.id) seedIds.push(user.id)
+      await delay(500)
+    } catch { /* skip */ }
+  }
+
+  if (seedIds.length > 0) {
+    await expandViaFollowing(seedIds, minFollowers, keywords, seen)
+  }
+  return seedIds
 }
 
 function baseResultFromUser(user: {
@@ -470,28 +529,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Serial search with delays to avoid X rate limits
-    const termsToSearch = expandedTerms.slice(0, MAX_SEARCH_TERMS)
-    for (const term of termsToSearch) {
-      if (rateLimited) break // stop early if already rate limited
+    // === Phase 1: Limited search API calls (max 2, rate-limited by X) ===
+    let searchCallsUsed = 0
+    for (const term of expandedTerms) {
+      if (rateLimited || searchCallsUsed >= MAX_SEARCH_CALLS) break
 
-      // Search users first, then tweets — serial, not parallel
       const { results: users, limited: usersLimited } = await safeSearchUsers(term)
+      searchCallsUsed++
       rateLimited = rateLimited || usersLimited
 
       for (const user of users) {
         if (user.followers_count < min_followers) continue
         if (isLikelyProjectAccount(user, originalKeywords)) continue
-
         const current = seen.get(user.id) ?? baseResultFromUser(user)
         current.keyword_post_count += 2
         scoreBioAndIdentity(current, `${current.display_name}\n${current.bio}\n${term}`)
         seen.set(user.id, current)
       }
 
-      if (rateLimited) break
+      if (rateLimited || searchCallsUsed >= MAX_SEARCH_CALLS) break
 
       const { results: tweets, limited: tweetsLimited } = await safeSearchTweets(term, time_range)
+      searchCallsUsed++
       rateLimited = rateLimited || tweetsLimited
 
       for (const tweet of tweets) {
@@ -499,19 +558,25 @@ export async function POST(req: NextRequest) {
         if (!user) continue
         if (user.followers_count < min_followers) continue
         if (isLikelyProjectAccount(user, originalKeywords)) continue
-
         const current = seen.get(user.id) ?? baseResultFromUser(user)
         current.keyword_post_count += 1
-        const topicHits =
-          countMatches(tweet.text, CORE_PM_TERMS) +
-          countMatches(tweet.text, TRADER_TERMS) +
-          countMatches(tweet.text, RESEARCH_TERMS)
+        const topicHits = countMatches(tweet.text, CORE_PM_TERMS) + countMatches(tweet.text, TRADER_TERMS) + countMatches(tweet.text, RESEARCH_TERMS)
         current.prediction_market_signal += topicHits
         current.recent_topic_signal += topicHits > 0 ? 1 : 0
         current.avg_engagement = Math.max(current.avg_engagement, tweet.favorite_count + tweet.retweet_count + tweet.reply_count)
         seen.set(user.id, current)
       }
     }
+
+    // === Phase 2: Social graph expansion (user lookups = NOT rate-limited) ===
+    // Use top seed results + existing DB KOLs to find more people via their following lists
+    const seedIds = [...seen.values()]
+      .sort((a, b) => b.keyword_post_count - a.keyword_post_count)
+      .slice(0, GRAPH_EXPAND_SEEDS)
+      .map((r) => r.twitter_id)
+
+    await expandViaFollowing(seedIds, min_followers, originalKeywords, seen)
+    await expandFromDbKols(originalKeywords, min_followers, seen)
 
     const list = [...seen.values()]
       .sort((a, b) => (b.keyword_post_count + b.prediction_market_signal) - (a.keyword_post_count + a.prediction_market_signal))
