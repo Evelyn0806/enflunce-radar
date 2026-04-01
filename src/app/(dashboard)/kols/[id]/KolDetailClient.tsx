@@ -85,7 +85,8 @@ export default function KolDetailClient({ kol, collabs, logs }: Props) {
     }
 
     const recognition = new SpeechRecognitionCtor()
-    recognition.lang = kol.language === 'zh' ? 'zh-CN' : 'en-US'
+    const langMap: Record<string, string> = { zh: 'zh-CN', en: 'en-US', ko: 'ko-KR', tr: 'tr-TR', vi: 'vi-VN', bilingual: 'zh-CN' }
+    recognition.lang = langMap[kol.language] ?? 'zh-CN'
     recognition.continuous = true
     recognition.interimResults = false
 
