@@ -6,6 +6,7 @@ import RefreshStatsButton from '@/components/RefreshStatsButton'
 import BatchAnalyzeButton from '@/components/BatchAnalyzeButton'
 import Link from 'next/link'
 import { Kol, KolStatus, Language, Tier } from '@/types'
+import { computeTier } from '@/lib/utils'
 
 interface SearchParams {
   status?: KolStatus
@@ -42,12 +43,16 @@ export default async function KolsPage({
   const { data: kols, error } = await query
   if (error) console.error(error)
 
-  const list = (kols ?? []) as Kol[]
+  // Recompute tier on the fly using latest logic
+  const list = (kols ?? []).map((k) => ({
+    ...k,
+    computed_tier: computeTier(k.followers_count, k.avg_engagement_rate),
+  })) as Kol[]
 
   // Summary stats
   const total = list.length
   const active = list.filter((k) => k.status === 'active').length
-  const tierA = list.filter((k) => k.computed_tier === 'A' || k.tier === 'A').length
+  const tierA = list.filter((k) => k.computed_tier === 'A').length
   const rapidGrowth = list.filter((k) => k.followers_count >= 10000).slice(0, 5).length
 
   return (

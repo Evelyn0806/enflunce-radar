@@ -19,23 +19,48 @@ import {
   normalizeKeyword,
 } from '@/lib/discover-profile'
 
+function isCommunityLink(url: string): boolean {
+  const lower = url.toLowerCase()
+  return (
+    lower.includes('t.me/') ||
+    lower.includes('telegram.me/') ||
+    lower.includes('discord.gg/') ||
+    lower.includes('discord.com/invite/') ||
+    lower.includes('wa.me/') ||
+    lower.includes('chat.whatsapp.com/') ||
+    lower.includes('reddit.com/r/') ||
+    lower.includes('circle.') ||
+    lower.includes('guild.xyz') ||
+    lower.includes('群') ||
+    lower.includes('group')
+  )
+}
+
 function detectCommunity(bio: string): { has: boolean; links: string[] } {
   const lower = bio.toLowerCase()
-  const has = COMMUNITY_TERMS.some((term) => lower.includes(term))
-  const linkPatterns = [
-    /https?:\/\/[^\s),]+/g,
+  const hasTerm = COMMUNITY_TERMS.some((term) => lower.includes(term))
+
+  // Extract community-specific links (not all URLs)
+  const communityPatterns = [
+    /https?:\/\/t\.me\/[\w-]+/g,
+    /https?:\/\/telegram\.me\/[\w-]+/g,
+    /https?:\/\/discord\.gg\/[\w-]+/g,
+    /https?:\/\/discord\.com\/invite\/[\w-]+/g,
+    /https?:\/\/wa\.me\/[\d]+/g,
+    /https?:\/\/chat\.whatsapp\.com\/[\w]+/g,
+    /https?:\/\/reddit\.com\/r\/[\w-]+/g,
     /t\.me\/[\w-]+/g,
     /discord\.gg\/[\w-]+/g,
     /discord\.com\/invite\/[\w-]+/g,
     /wa\.me\/[\d]+/g,
-    /chat\.whatsapp\.com\/[\w]+/g,
-    /reddit\.com\/r\/[\w-]+/g,
   ]
   const links: string[] = []
-  for (const pattern of linkPatterns) {
+  for (const pattern of communityPatterns) {
     const matches = bio.match(pattern)
     if (matches) links.push(...matches)
   }
+
+  // Extract tg: @handle mentions
   const tgMentions = bio.match(/tg:\s*@?([\w-]+)/gi)
   if (tgMentions) {
     for (const m of tgMentions) {
@@ -43,8 +68,24 @@ function detectCommunity(bio: string): { has: boolean; links: string[] } {
       links.push(`t.me/${handle}`)
     }
   }
+
+  // Check generic URLs that might be community links based on surrounding text
+  const genericUrls = bio.match(/https?:\/\/[^\s),\]]+/g) ?? []
+  for (const url of genericUrls) {
+    if (isCommunityLink(url)) {
+      links.push(url)
+    }
+  }
+
+  // Check for Chinese-context community mentions: "电报群：url" or "加入...群"
+  const zhCommunityPattern = /(?:电报|telegram|tg|discord|群|社群|频道|channel)[^\n]*?(https?:\/\/[^\s),\]]+|t\.me\/[\w-]+|discord\.gg\/[\w-]+)/gi
+  const zhMatches = bio.matchAll(zhCommunityPattern)
+  for (const m of zhMatches) {
+    if (m[1]) links.push(m[1])
+  }
+
   const uniqueLinks = [...new Set(links)]
-  return { has: has || uniqueLinks.length > 0, links: uniqueLinks }
+  return { has: hasTerm || uniqueLinks.length > 0, links: uniqueLinks }
 }
 
 
