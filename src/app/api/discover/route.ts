@@ -155,9 +155,11 @@ function isLikelyProjectAccount(
   return false
 }
 
-const SEARCH_SAMPLE_COUNT = 50
-const ENRICH_CANDIDATE_LIMIT = 20
-const DISCOVER_CACHE_TTL_MS = 15 * 60 * 1000
+const SEARCH_SAMPLE_COUNT = 20
+const ENRICH_CANDIDATE_LIMIT = 5
+const DISCOVER_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour cache
+const MAX_SEARCH_TERMS = 3
+const REQUEST_DELAY_MS = 2000
 
 type DiscoverResponse = {
   results: DiscoveryResult[]
@@ -193,18 +195,28 @@ export interface DiscoveryResult {
   profile_score: number
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function safeSearchUsers(term: string) {
   try {
-    return { results: await searchTwikitUsers(term, SEARCH_SAMPLE_COUNT), limited: false }
-  } catch {
+    const results = await searchTwikitUsers(term, SEARCH_SAMPLE_COUNT)
+    await delay(REQUEST_DELAY_MS)
+    return { results, limited: false }
+  } catch (e) {
+    console.error('[discover] user-search failed:', term, e instanceof Error ? e.message : e)
     return { results: [], limited: true }
   }
 }
 
 async function safeSearchTweets(term: string, timeRange: number) {
   try {
-    return { results: await searchTwikitTweets(buildSearchQuery(term, timeRange), SEARCH_SAMPLE_COUNT), limited: false }
-  } catch {
+    const results = await searchTwikitTweets(buildSearchQuery(term, timeRange), SEARCH_SAMPLE_COUNT)
+    await delay(REQUEST_DELAY_MS)
+    return { results, limited: false }
+  } catch (e) {
+    console.error('[discover] tweet-search failed:', term, e instanceof Error ? e.message : e)
     return { results: [], limited: true }
   }
 }
@@ -458,12 +470,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    for (const term of expandedTerms) {
-      const [{ results: users, limited: usersLimited }, { results: tweets, limited: tweetsLimited }] = await Promise.all([
-        safeSearchUsers(term),
-        safeSearchTweets(term, time_range),
-      ])
-      rateLimited = rateLimited || usersLimited || tweetsLimited
+    // Serial search with delays to avoid X rate limits
+    const termsToSearch = expandedTerms.slice(0, MAX_SEARCH_TERMS)
+    for (const term of termsToSearch) {
+      if (rateLimited) break // stop early if already rate limited
+
+      // Search users first, then tweets — serial, not parallel
+      const { results: users, limited: usersLimited } = await safeSearchUsers(term)
+      rateLimited = rateLimited || usersLimited
 
       for (const user of users) {
         if (user.followers_count < min_followers) continue
@@ -474,6 +488,11 @@ export async function POST(req: NextRequest) {
         scoreBioAndIdentity(current, `${current.display_name}\n${current.bio}\n${term}`)
         seen.set(user.id, current)
       }
+
+      if (rateLimited) break
+
+      const { results: tweets, limited: tweetsLimited } = await safeSearchTweets(term, time_range)
+      rateLimited = rateLimited || tweetsLimited
 
       for (const tweet of tweets) {
         const user = tweet.user
@@ -497,46 +516,30 @@ export async function POST(req: NextRequest) {
     const list = [...seen.values()]
       .sort((a, b) => (b.keyword_post_count + b.prediction_market_signal) - (a.keyword_post_count + a.prediction_market_signal))
 
-    await Promise.all(
-      list.slice(0, ENRICH_CANDIDATE_LIMIT).map(async (item) => {
-        try {
-          const tweets = await getTwikitUserTweets(item.twitter_id, 15)
-          const relevantTweets = tweets.filter((tweet) => {
-            const topicHits =
-              countMatches(tweet.text, CORE_PM_TERMS) +
-              countMatches(tweet.text, TRADER_TERMS) +
-              countMatches(tweet.text, RESEARCH_TERMS)
-            return topicHits > 0
-          })
-          item.recent_topic_signal += relevantTweets.length
-          item.avg_engagement = Math.max(item.avg_engagement, averageEngagement(relevantTweets.length > 0 ? relevantTweets : tweets))
-          item.prediction_market_signal += relevantTweets.reduce((sum, tweet) => {
-            return sum +
-              countMatches(tweet.text, CORE_PM_TERMS) +
-              countMatches(tweet.text, TRADER_TERMS) +
-              countMatches(tweet.text, RESEARCH_TERMS)
-          }, 0)
-        } catch {
-          if (!hasXApiFallback()) return
-          const tweets = await fetchXRecentTweetsByHandle(item.x_handle, 10)
-          const relevantTweets = tweets.filter((tweet) => {
-            const topicHits =
-              countMatches(tweet.text, CORE_PM_TERMS) +
-              countMatches(tweet.text, TRADER_TERMS) +
-              countMatches(tweet.text, RESEARCH_TERMS)
-            return topicHits > 0
-          })
-          item.recent_topic_signal += relevantTweets.length
-          item.avg_engagement = Math.max(item.avg_engagement, averageEngagement(relevantTweets.length > 0 ? relevantTweets : tweets))
-          item.prediction_market_signal += relevantTweets.reduce((sum, tweet) => {
-            return sum +
-              countMatches(tweet.text, CORE_PM_TERMS) +
-              countMatches(tweet.text, TRADER_TERMS) +
-              countMatches(tweet.text, RESEARCH_TERMS)
-          }, 0)
-        }
-      })
-    )
+    // Enrich top candidates — serial with delays to avoid rate limits
+    for (const item of list.slice(0, ENRICH_CANDIDATE_LIMIT)) {
+      try {
+        await delay(REQUEST_DELAY_MS)
+        const tweets = await getTwikitUserTweets(item.twitter_id, 10)
+        const relevantTweets = tweets.filter((tweet) => {
+          const topicHits =
+            countMatches(tweet.text, CORE_PM_TERMS) +
+            countMatches(tweet.text, TRADER_TERMS) +
+            countMatches(tweet.text, RESEARCH_TERMS)
+          return topicHits > 0
+        })
+        item.recent_topic_signal += relevantTweets.length
+        item.avg_engagement = Math.max(item.avg_engagement, averageEngagement(relevantTweets.length > 0 ? relevantTweets : tweets))
+        item.prediction_market_signal += relevantTweets.reduce((sum, tweet) => {
+          return sum +
+            countMatches(tweet.text, CORE_PM_TERMS) +
+            countMatches(tweet.text, TRADER_TERMS) +
+            countMatches(tweet.text, RESEARCH_TERMS)
+        }, 0)
+      } catch {
+        // Skip enrichment on error, don't mark as rate limited
+      }
+    }
 
     const profileStats = await loadProfileStats()
 
