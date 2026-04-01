@@ -1,0 +1,5 @@
+twikit
+typing-extensions
+xclienttransaction
+beautifulsoup4
+lxml
