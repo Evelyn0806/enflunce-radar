@@ -8,18 +8,37 @@ import { formatNumber, formatDate } from '@/lib/utils'
 
 interface Props { kols: Kol[] }
 
+function engagementClass(rate: number | null): string {
+  if (rate == null) return ''
+  if (rate >= 3) return 'engagement-high'
+  if (rate >= 1) return 'engagement-mid'
+  return 'engagement-low'
+}
+
+function communityIcons(platforms: string[] | null, links: string[] | null) {
+  if (!platforms?.length && !links?.length) return null
+  const allText = [...(platforms ?? []), ...(links ?? [])].join(' ').toLowerCase()
+  const icons: { label: string; icon: string }[] = []
+  if (allText.includes('telegram') || allText.includes('t.me')) icons.push({ label: 'TG', icon: '✈' })
+  if (allText.includes('discord')) icons.push({ label: 'DC', icon: '💬' })
+  if (allText.includes('wechat') || allText.includes('微信')) icons.push({ label: 'WX', icon: '💚' })
+  if (allText.includes('whatsapp') || allText.includes('wa.me')) icons.push({ label: 'WA', icon: '📱' })
+  if (icons.length === 0 && (platforms?.length || links?.length)) icons.push({ label: '社群', icon: '👥' })
+  return icons
+}
+
 export default function KolTable({ kols }: Props) {
   const router = useRouter()
   const [deleting, setDeleting] = useState<string | null>(null)
 
   async function handleDelete(id: string, handle: string) {
     if (!confirm(`确定删除 @${handle}？`)) return
-
     setDeleting(id)
     await fetch(`/api/kols/${id}`, { method: 'DELETE' })
     setDeleting(null)
     router.refresh()
   }
+
   if (kols.length === 0) {
     return (
       <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>
@@ -39,6 +58,7 @@ export default function KolTable({ kols }: Props) {
             <th>Tier</th>
             <th>粉丝数</th>
             <th>互动率</th>
+            <th>私域</th>
             <th>最近发帖</th>
             <th>角色</th>
             <th>状态</th>
@@ -52,7 +72,7 @@ export default function KolTable({ kols }: Props) {
             const statusCfg = STATUS_CONFIG[kol.status]
             const flagCfg = FLAG_CONFIG[kol.status_flag]
             const langCfg = LANGUAGE_CONFIG[kol.language]
-            const tierCfg = TIER_CONFIG[tier]
+            const icons = communityIcons(kol.community_platforms, kol.community_links)
 
             return (
               <tr key={kol.id}>
@@ -66,12 +86,23 @@ export default function KolTable({ kols }: Props) {
                   }
                 </td>
 
-                {/* Handle */}
+                {/* Handle + X link */}
                 <td>
                   <div style={{ fontWeight: 500, color: '#0f172a' }}>
                     {kol.display_name ?? kol.x_handle}
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>@{kol.x_handle}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>@{kol.x_handle}</span>
+                    <a
+                      href={`https://x.com/${kol.x_handle}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="X 主页"
+                      style={{ color: '#6366f1', textDecoration: 'none', fontSize: 11 }}
+                    >
+                      ↗
+                    </a>
+                  </div>
                 </td>
 
                 {/* Language */}
@@ -103,11 +134,26 @@ export default function KolTable({ kols }: Props) {
                 {/* Engagement */}
                 <td>
                   {kol.avg_engagement_rate != null
-                    ? <span style={{ color: kol.avg_engagement_rate >= 3 ? '#16a34a' : '#64748b' }}>
+                    ? <span className={engagementClass(kol.avg_engagement_rate)}>
                         {kol.avg_engagement_rate.toFixed(1)}%
                       </span>
                     : <span style={{ color: '#cbd5e1' }}>—</span>
                   }
+                </td>
+
+                {/* Community */}
+                <td>
+                  {kol.has_private_community && icons ? (
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                      {icons.map((ic) => (
+                        <span key={ic.label} className="community-icon">
+                          {ic.icon} {ic.label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#e2e8f0' }}>—</span>
+                  )}
                 </td>
 
                 {/* Last post */}

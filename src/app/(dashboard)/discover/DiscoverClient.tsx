@@ -15,10 +15,10 @@ const FLAG_OPTIONS: { value: StatusFlag; icon: string; label: string; status: Ko
 
 const LANG_OPTIONS: { value: Language; label: string }[] = [
   { value: 'zh', label: '🇨🇳 中文' },
-  { value: 'en', label: '🇺🇸 English' },
-  { value: 'ko', label: '🇰🇷 한국어' },
-  { value: 'tr', label: '🇹🇷 Türkçe' },
-  { value: 'vi', label: '🇻🇳 Tiếng Việt' },
+  { value: 'en', label: '🇺🇸 EN' },
+  { value: 'ko', label: '🇰🇷 KO' },
+  { value: 'tr', label: '🇹🇷 TR' },
+  { value: 'vi', label: '🇻🇳 VI' },
   { value: 'bilingual', label: '🌐 双语' },
 ]
 
@@ -28,22 +28,22 @@ interface RowState {
   language: Language
 }
 
+function scoreColor(score: number): string {
+  if (score >= 70) return '#16a34a'
+  if (score >= 50) return '#6366f1'
+  return '#f59e0b'
+}
+
 export default function DiscoverClient() {
   const router = useRouter()
-
-  // Search state
   const [keywords, setKeywords] = useState<string[]>([])
   const [kwInput, setKwInput] = useState('')
   const [minFollowers, setMinFollowers] = useState(5000)
   const [timeRange, setTimeRange] = useState(30)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  // Results
   const [results, setResults] = useState<DiscoveryResult[]>([])
   const [rowState, setRowState] = useState<Map<string, RowState>>(new Map())
-
-  // Import state
   const [importing, setImporting] = useState(false)
 
   async function search() {
@@ -64,7 +64,6 @@ export default function DiscoverClient() {
     } else {
       setError(json.warning ?? '')
       setResults(json.results ?? [])
-      // Init row states with auto-detected language
       const map = new Map<string, RowState>()
       for (const r of json.results ?? []) {
         map.set(r.twitter_id, { selected: false, flag: 'none', language: r.language ?? 'en' })
@@ -144,13 +143,12 @@ export default function DiscoverClient() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>KOL 发现</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-          输入关键词，筛出符合画像的 Prediction Market KOL / KOC，打标后直接进入 CRM
+          输入关键词，AI 画像评分过滤项目方，精准锁定 KOL / KOC
         </p>
       </div>
 
       {/* Search Panel */}
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Keywords */}
         <div>
           <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
             关键词（至少一个）
@@ -159,13 +157,13 @@ export default function DiscoverClient() {
             {keywords.map((kw) => (
               <span key={kw} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '3px 10px', background: '#1e293b', color: '#f1f5f9',
+                padding: '3px 10px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#ffffff',
                 borderRadius: 20, fontSize: 12,
               }}>
                 {kw}
                 <button
                   onClick={() => setKeywords(keywords.filter((k) => k !== kw))}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
                 >×</button>
               </span>
             ))}
@@ -183,39 +181,24 @@ export default function DiscoverClient() {
           </div>
         </div>
 
-        {/* Filters row */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
-            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>
-              时间范围
-            </label>
-            <select
-              className="select"
-              value={timeRange}
-              onChange={(e) => setTimeRange(Number(e.target.value))}
-            >
+            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>时间范围</label>
+            <select className="select" value={timeRange} onChange={(e) => setTimeRange(Number(e.target.value))}>
               <option value={30}>近1个月</option>
               <option value={60}>近2个月</option>
               <option value={90}>近3个月</option>
             </select>
           </div>
-
           <div>
-            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>
-              最低粉丝数
-            </label>
-            <select
-              className="select"
-              value={minFollowers}
-              onChange={(e) => setMinFollowers(Number(e.target.value))}
-            >
+            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>最低粉丝数</label>
+            <select className="select" value={minFollowers} onChange={(e) => setMinFollowers(Number(e.target.value))}>
               <option value={1000}>1,000+</option>
               <option value={5000}>5,000+</option>
               <option value={10000}>10,000+</option>
               <option value={50000}>50,000+</option>
             </select>
           </div>
-
           <button
             className="btn btn-primary"
             onClick={search}
@@ -235,14 +218,11 @@ export default function DiscoverClient() {
 
       {/* Results */}
       {results.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {/* Table header actions */}
+        <div>
+          {/* Actions bar */}
           <div style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid #e2e8f0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
+            display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
+            padding: '10px 16px', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
           }}>
             <span style={{ fontSize: 13, color: '#64748b' }}>
               找到 <strong style={{ color: '#0f172a' }}>{results.length}</strong> 位 KOL
@@ -268,159 +248,116 @@ export default function DiscoverClient() {
             </div>
           </div>
 
-          {/* Results table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }}></th>
-                  <th>KOL</th>
-                  <th>粉丝数</th>
-                  <th>相关度</th>
-                  <th>主题命中</th>
-                  <th>近期互动</th>
-                  <th>私域</th>
-                  <th>语区</th>
-                  <th>标识</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r) => {
-                  const rs = rowState.get(r.twitter_id)!
-                  return (
-                    <tr key={r.twitter_id} style={{ opacity: r.already_in_db ? 0.5 : 1 }}>
-                      {/* Checkbox */}
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={rs.selected}
-                          onChange={(e) => updateRow(r.twitter_id, { selected: e.target.checked })}
-                        />
-                      </td>
-
-                      {/* KOL info */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          {r.avatar_url
-                            ? <img src={r.avatar_url} alt="" className="avatar" />
-                            : <div className="avatar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#94a3b8' }}>
-                                {r.display_name?.[0]?.toUpperCase()}
-                              </div>
-                          }
-                          <div>
-                            <div style={{ fontWeight: 500, color: '#0f172a', fontSize: 13 }}>
-                              {r.display_name}
-                              {r.already_in_db && (
-                                <span style={{ fontSize: 10, color: '#64748b', marginLeft: 6 }}>已入库</span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <span>@{r.x_handle}</span>
-                              <a href={r.profile_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
-                                X 主页
-                              </a>
-                              {r.community_links[0] && (
-                                <a href={r.community_links[0]} target="_blank" rel="noreferrer" style={{ color: '#16a34a', textDecoration: 'none' }}>
-                                  私域链接
-                                </a>
-                              )}
-                            </div>
-                            {r.bio && (
-                              <div style={{ fontSize: 11, color: '#64748b', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {r.bio}
-                              </div>
-                            )}
-                          </div>
+          {/* Card grid */}
+          <div className="discover-grid">
+            {results.map((r) => {
+              const rs = rowState.get(r.twitter_id)!
+              const pScore = r.profile_score ?? 50
+              return (
+                <div
+                  key={r.twitter_id}
+                  className={`discover-card ${rs.selected ? 'selected' : ''}`}
+                  style={{ opacity: r.already_in_db ? 0.55 : 1 }}
+                  onClick={() => updateRow(r.twitter_id, { selected: !rs.selected })}
+                >
+                  {/* Top row: avatar + info */}
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    {r.avatar_url
+                      ? <img src={r.avatar_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      : <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#94a3b8', flexShrink: 0 }}>
+                          {r.display_name?.[0]?.toUpperCase()}
                         </div>
-                      </td>
-
-                      {/* Followers */}
-                      <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>
-                        {formatNumber(r.followers_count)}
-                      </td>
-
-                      {/* Relevance */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span className={`badge tier-${r.tier}`}>{r.tier}</span>
-                          <span style={{ fontSize: 12, color: '#0f172a', fontWeight: 600 }}>
-                            {r.relevance_score}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Topic signal */}
-                      <td style={{ fontSize: 12, color: '#334155' }}>
-                        <div>提及 {r.prediction_market_signal}</div>
-                        <div style={{ color: '#64748b' }}>近期 {r.recent_topic_signal} 条</div>
-                        <div style={{ color: '#64748b' }}>工具 {r.bio_tool_signal}</div>
-                      </td>
-
-                      {/* Engagement */}
-                      <td style={{ fontSize: 13 }}>
-                        <span style={{ color: r.avg_engagement >= 100 ? '#16a34a' : '#64748b' }}>
-                          {formatNumber(r.avg_engagement)}
+                    }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.display_name}
                         </span>
-                      </td>
+                        <span className={`badge tier-${r.tier}`} style={{ fontSize: 10 }}>{r.tier}</span>
+                        {r.already_in_db && <span style={{ fontSize: 9, color: '#94a3b8', background: '#f1f5f9', padding: '1px 5px', borderRadius: 3 }}>已入库</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span>@{r.x_handle}</span>
+                        <a href={r.profile_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#6366f1', textDecoration: 'none', fontSize: 11 }}>
+                          X ↗
+                        </a>
+                      </div>
+                    </div>
+                  </div>
 
-                      {/* Private community */}
-                      <td style={{ fontSize: 12 }}>
-                        {r.has_private_community ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <span>✅ {r.community_links.length > 0 && `(${r.community_links.length})`}</span>
-                            {r.community_links.slice(0, 2).map((link) => (
-                              <a key={link} href={link} target="_blank" rel="noreferrer" style={{ color: '#16a34a', textDecoration: 'none' }}>
-                                {link}
-                              </a>
-                            ))}
-                          </div>
-                        ) : (
-                          <span style={{ color: '#cbd5e1' }}>—</span>
-                        )}
-                      </td>
+                  {/* Bio */}
+                  {r.bio && (
+                    <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+                      {r.bio}
+                    </div>
+                  )}
 
-                      {/* Language selector */}
-                      <td>
-                        <select
-                          className="select"
-                          style={{ fontSize: 12, padding: '4px 28px 4px 8px' }}
-                          value={rs.language}
-                          onChange={(e) => updateRow(r.twitter_id, { language: e.target.value as Language })}
+                  {/* Stats row */}
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 10, fontSize: 12 }}>
+                    <div>
+                      <span style={{ color: '#94a3b8' }}>粉丝 </span>
+                      <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatNumber(r.followers_count)}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#94a3b8' }}>相关度 </span>
+                      <span style={{ fontWeight: 600, color: '#6366f1' }}>{r.relevance_score}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#94a3b8' }}>互动 </span>
+                      <span style={{ fontWeight: 600, color: r.avg_engagement >= 100 ? '#16a34a' : '#64748b' }}>{formatNumber(r.avg_engagement)}</span>
+                    </div>
+                    {r.has_private_community && (
+                      <span className="community-icon">社群 {r.community_links.length > 0 && `(${r.community_links.length})`}</span>
+                    )}
+                  </div>
+
+                  {/* Profile score bar */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                      <span style={{ color: '#94a3b8' }}>画像评分</span>
+                      <span style={{ fontWeight: 600, color: scoreColor(pScore) }}>{pScore}</span>
+                    </div>
+                    <div className="score-bar">
+                      <div className="score-bar-fill" style={{ width: `${pScore}%`, background: scoreColor(pScore) }} />
+                    </div>
+                  </div>
+
+                  {/* Bottom controls */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }} onClick={(e) => e.stopPropagation()}>
+                    <select
+                      className="select"
+                      style={{ fontSize: 11, padding: '3px 24px 3px 6px', minWidth: 70 }}
+                      value={rs.language}
+                      onChange={(e) => updateRow(r.twitter_id, { language: e.target.value as Language })}
+                    >
+                      {LANG_OPTIONS.map((l) => (
+                        <option key={l.value} value={l.value}>{l.label}</option>
+                      ))}
+                    </select>
+                    <div style={{ display: 'flex', gap: 3 }}>
+                      {FLAG_OPTIONS.map((f) => (
+                        <button
+                          key={f.value}
+                          title={f.label}
+                          onClick={() => updateRow(r.twitter_id, { flag: f.value, selected: true })}
+                          style={{
+                            width: 26, height: 26,
+                            borderRadius: 6,
+                            border: rs.flag === f.value ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                            background: rs.flag === f.value ? '#eef2ff' : 'transparent',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
                         >
-                          {LANG_OPTIONS.map((l) => (
-                            <option key={l.value} value={l.value}>{l.label}</option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {/* Flag selector */}
-                      <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {FLAG_OPTIONS.map((f) => (
-                            <button
-                              key={f.value}
-                              title={f.label}
-                              onClick={() => updateRow(r.twitter_id, { flag: f.value, selected: true })}
-                              style={{
-                                width: 28, height: 28,
-                                borderRadius: 6,
-                                border: rs.flag === f.value ? '2px solid #0f172a' : '1px solid #e2e8f0',
-                                background: rs.flag === f.value ? '#f1f5f9' : 'transparent',
-                                cursor: 'pointer',
-                                fontSize: 13,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              }}
-                            >
-                              {f.icon}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                          {f.icon}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -428,9 +365,9 @@ export default function DiscoverClient() {
       {/* Empty state */}
       {!loading && results.length === 0 && (
         <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>
-          <div>输入关键词开始发现 KOL</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>支持多关键词组合，自动按 Tier / 粉丝数排序</div>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>🔍</div>
+          <div style={{ fontSize: 14 }}>输入关键词开始发现 KOL</div>
+          <div style={{ fontSize: 12, marginTop: 6, color: '#cbd5e1' }}>支持多关键词组合 · AI 画像评分自动过滤项目方</div>
         </div>
       )}
     </div>

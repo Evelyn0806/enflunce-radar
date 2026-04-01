@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { computeTier } from '@/lib/utils'
+import { computeTier, detectLanguage } from '@/lib/utils'
 import { Language, Tier } from '@/types'
 import { getTwikitUserTweets, searchTwikitTweets, searchTwikitUsers, tryGetTwikitUser } from '@/lib/twikit'
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle, hasXApiFallback } from '@/lib/x-api-fallback'
@@ -22,14 +22,31 @@ import {
 function detectCommunity(bio: string): { has: boolean; links: string[] } {
   const lower = bio.toLowerCase()
   const has = COMMUNITY_TERMS.some((term) => lower.includes(term))
-  const links = bio.match(/(https?:\/\/[^\s]+|t\.me\/[^\s]+|discord\.gg\/[^\s]+|reddit\.com\/[^\s]+)/g) || []
-  return { has, links }
+  const linkPatterns = [
+    /https?:\/\/[^\s),]+/g,
+    /t\.me\/[\w-]+/g,
+    /discord\.gg\/[\w-]+/g,
+    /discord\.com\/invite\/[\w-]+/g,
+    /wa\.me\/[\d]+/g,
+    /chat\.whatsapp\.com\/[\w]+/g,
+    /reddit\.com\/r\/[\w-]+/g,
+  ]
+  const links: string[] = []
+  for (const pattern of linkPatterns) {
+    const matches = bio.match(pattern)
+    if (matches) links.push(...matches)
+  }
+  const tgMentions = bio.match(/tg:\s*@?([\w-]+)/gi)
+  if (tgMentions) {
+    for (const m of tgMentions) {
+      const handle = m.replace(/^tg:\s*@?/i, '')
+      links.push(`t.me/${handle}`)
+    }
+  }
+  const uniqueLinks = [...new Set(links)]
+  return { has: has || uniqueLinks.length > 0, links: uniqueLinks }
 }
 
-function detectLanguage(bio: string): Language {
-  const zhChars = bio.match(/[\u4e00-\u9fa5]/g)
-  return zhChars && zhChars.length > 10 ? 'zh' : 'en'
-}
 
 function formatDate(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -132,6 +149,7 @@ export interface DiscoveryResult {
   community_signal: number
   recent_topic_signal: number
   relevance_score: number
+  profile_score: number
 }
 
 async function safeSearchUsers(term: string) {
@@ -181,7 +199,7 @@ function baseResultFromUser(user: {
     keyword_post_count: 0,
     tier: computeTier(user.followers_count, null),
     already_in_db: false,
-    language: detectLanguage(bio),
+    language: detectLanguage(bio, user.name),
     has_private_community: community.has,
     community_links: community.links,
     avg_engagement: 0,
@@ -190,6 +208,7 @@ function baseResultFromUser(user: {
     community_signal: community.has ? 1 + community.links.length : 0,
     recent_topic_signal: 0,
     relevance_score: 0,
+    profile_score: 50,
   }
 }
 
@@ -209,6 +228,74 @@ function computeRelevance(item: DiscoveryResult) {
     item.recent_topic_signal * 5 +
     Math.min(12, Math.round(item.avg_engagement / 15))
   )
+}
+
+interface ProfileStats {
+  medianFollowers: number
+  avgPostsCount: number
+  bioKeywords: string[]
+}
+
+async function loadProfileStats(): Promise<ProfileStats> {
+  const { data } = await supabase
+    .from('kols')
+    .select('followers_count, posts_count, bio')
+    .order('followers_count', { ascending: true })
+
+  if (!data || data.length === 0) {
+    return { medianFollowers: 50_000, avgPostsCount: 1000, bioKeywords: [] }
+  }
+
+  const mid = Math.floor(data.length / 2)
+  const medianFollowers = data[mid].followers_count ?? 50_000
+  const avgPostsCount = Math.round(data.reduce((s, k) => s + (k.posts_count ?? 0), 0) / data.length)
+
+  const wordFreq = new Map<string, number>()
+  for (const k of data) {
+    if (!k.bio) continue
+    const words = k.bio.toLowerCase().match(/[a-z]{3,}/g) ?? []
+    for (const w of words) wordFreq.set(w, (wordFreq.get(w) ?? 0) + 1)
+  }
+  const bioKeywords = [...wordFreq.entries()]
+    .filter(([, count]) => count >= 3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 30)
+    .map(([w]) => w)
+
+  return { medianFollowers, avgPostsCount, bioKeywords }
+}
+
+function scoreKolProfile(item: DiscoveryResult, stats: ProfileStats): number {
+  let score = 50
+
+  // Project account penalties
+  const bioLower = item.bio.toLowerCase()
+  const projectTerms = ['official', 'protocol', 'foundation', 'labs', 'platform', 'network', 'ecosystem']
+  for (const term of projectTerms) {
+    if (bioLower.includes(term)) score -= 12
+  }
+  const followRatio = item.followers_count / Math.max(item.following_count, 1)
+  if (followRatio > 1000) score -= 20
+  if (item.posts_count < 100) score -= 10
+
+  // KOL positive signals
+  if (item.has_private_community) score += 15
+  if (item.community_links.length > 0) score += 5
+  const personalTerms = ['founder', 'trader', 'investor', 'degen', 'my takes', 'opinions', 'alpha', 'research']
+  for (const term of personalTerms) {
+    if (bioLower.includes(term)) { score += 5; break }
+  }
+  if (item.posts_count > 500) score += 10
+  if (item.posts_count > 2000) score += 5
+  if (followRatio >= 5 && followRatio <= 200) score += 10
+  if (item.bio.length > 50) score += 5
+
+  // Similarity to existing KOLs
+  const bioWords = bioLower.match(/[a-z]{3,}/g) ?? []
+  const overlap = bioWords.filter((w) => stats.bioKeywords.includes(w)).length
+  score += Math.min(20, overlap * 4)
+
+  return Math.max(0, Math.min(100, score))
 }
 
 async function annotateExistingKols(results: DiscoveryResult[]) {
@@ -410,14 +497,19 @@ export async function POST(req: NextRequest) {
       })
     )
 
+    const profileStats = await loadProfileStats()
+
     for (const item of list) {
       item.relevance_score = computeRelevance(item)
+      item.profile_score = scoreKolProfile(item, profileStats)
     }
 
-    const results = list.sort((a, b) => {
-      if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score
-      return b.followers_count - a.followers_count
-    })
+    const results = list
+      .filter((item) => item.profile_score >= 35)
+      .sort((a, b) => {
+        if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score
+        return b.followers_count - a.followers_count
+      })
 
     if (results.length > 0) {
       await annotateExistingKols(results)

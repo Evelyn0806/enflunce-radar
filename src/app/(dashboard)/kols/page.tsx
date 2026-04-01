@@ -3,6 +3,7 @@ import KolTable from '@/components/KolTable'
 import KolFilters from '@/components/KolFilters'
 import AddKolButton from '@/components/AddKolButton'
 import RefreshStatsButton from '@/components/RefreshStatsButton'
+import BatchAnalyzeButton from '@/components/BatchAnalyzeButton'
 import Link from 'next/link'
 import { Kol, KolStatus, Language, Tier } from '@/types'
 
@@ -60,9 +61,10 @@ export default async function KolsPage({
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <BatchAnalyzeButton />
           <RefreshStatsButton kolIds={list.map(k => k.id)} />
           <Link href="/kols/batch-import" className="btn btn-secondary">
-            📥 批量导入
+            批量导入
           </Link>
           <AddKolButton />
         </div>

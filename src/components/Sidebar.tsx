@@ -23,6 +23,7 @@ const NAV_ITEMS = [
     group: '情报',
     items: [
       { href: '/competitor', label: '竞品雷达', labelEn: 'Competitor', icon: '◉' },
+      { href: '/chat', label: 'AI 助手', labelEn: 'Chat', icon: '💬' },
     ],
   },
 ]
@@ -33,33 +34,47 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid #334155' }}>
+      <div style={{ padding: '16px 12px 12px', borderBottom: '1px solid #1e293b', minHeight: 56 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.5px' }}>
-            En·flunce
-          </span>
-          <span style={{
-            fontSize: 10,
-            fontWeight: 600,
-            background: '#3b82f6',
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 16,
+            fontWeight: 800,
             color: '#fff',
-            padding: '1px 6px',
-            borderRadius: 4,
-            letterSpacing: '0.5px',
+            flexShrink: 0,
           }}>
-            RADAR
+            E
+          </div>
+          <span className="sidebar-label" style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.5px' }}>
+            En·flunce
+            <span style={{
+              fontSize: 9,
+              fontWeight: 600,
+              background: '#6366f1',
+              color: '#fff',
+              padding: '1px 5px',
+              borderRadius: 3,
+              marginLeft: 6,
+              letterSpacing: '0.5px',
+              verticalAlign: 'middle',
+            }}>
+              RADAR
+            </span>
           </span>
-        </div>
-        <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
-          KOL Discovery Platform
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ padding: '12px 8px', flex: 1 }}>
+      <nav style={{ padding: '12px 6px', flex: 1, overflowY: 'auto' }}>
         {NAV_ITEMS.map((group) => (
           <div key={group.group} style={{ marginBottom: 16 }}>
-            <div style={{
+            <div className="sidebar-label" style={{
               fontSize: 10,
               fontWeight: 600,
               color: '#475569',
@@ -75,24 +90,26 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={item.label}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    padding: '7px 10px',
-                    borderRadius: 7,
+                    padding: '8px 10px',
+                    borderRadius: 8,
                     marginTop: 2,
                     textDecoration: 'none',
                     color: isActive ? '#f8fafc' : '#94a3b8',
-                    background: isActive ? '#334155' : 'transparent',
+                    background: isActive ? 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))' : 'transparent',
                     transition: 'all 0.15s',
                     fontSize: 13,
                     fontWeight: isActive ? 500 : 400,
+                    minHeight: 36,
                   }}
                 >
-                  <span style={{ fontSize: 14, opacity: 0.8 }}>{item.icon}</span>
-                  <span>{item.label}</span>
-                  <span style={{ fontSize: 10, color: '#475569', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: 16, width: 24, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
+                  <span className="sidebar-label">{item.label}</span>
+                  <span className="sidebar-label" style={{ fontSize: 10, color: '#475569', marginLeft: 'auto' }}>
                     {item.labelEn}
                   </span>
                 </Link>
@@ -104,13 +121,14 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid #334155',
+        padding: '12px',
+        borderTop: '1px solid #1e293b',
         fontSize: 11,
         color: '#475569',
       }}>
-        <Link href="/settings" style={{ color: '#475569', textDecoration: 'none' }}>
-          ⚙ 设置 Settings
+        <Link href="/settings" title="设置" style={{ color: '#475569', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px' }}>
+          <span style={{ fontSize: 16, width: 24, textAlign: 'center' }}>⚙</span>
+          <span className="sidebar-label">设置 Settings</span>
         </Link>
       </div>
     </aside>

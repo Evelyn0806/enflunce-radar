@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { computeTier } from '@/lib/utils'
+import { computeTier, detectLanguage } from '@/lib/utils'
 import { getTwikitUser } from '@/lib/twikit'
 import { fetchXUserByHandle } from '@/lib/x-api-fallback'
 import { Language } from '@/types'
@@ -58,11 +58,13 @@ export async function POST(req: NextRequest) {
     ? computeTier(xData.followers_count, null)
     : 'C'
 
+  const resolvedLanguage = language || (xData ? detectLanguage(xData.bio, xData.display_name) : 'en')
+
   const { data, error } = await supabase
     .from('kols')
     .insert({
       x_handle: x_handle.toLowerCase(),
-      language,
+      language: resolvedLanguage,
       tier,
       ...(xData ?? {}),
     })

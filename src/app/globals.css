@@ -1,16 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
+  --background: #f1f5f9;
   --foreground: #0f172a;
-  --sidebar-bg: #1e293b;
+  --sidebar-bg: #0f172a;
   --sidebar-text: #94a3b8;
   --sidebar-active: #f8fafc;
-  --sidebar-hover: #334155;
-  --sidebar-width: 220px;
+  --sidebar-hover: #1e293b;
+  --sidebar-width: 56px;
+  --sidebar-expanded: 220px;
   --header-height: 56px;
   --border: #e2e8f0;
   --card-bg: #ffffff;
+  --accent: #6366f1;
+  --accent-light: #818cf8;
+  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
 }
 
 @theme inline {
@@ -60,7 +64,22 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 30;
+}
+.sidebar:hover {
+  width: var(--sidebar-expanded);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+}
+.sidebar:hover .sidebar-label {
+  opacity: 1;
+}
+.sidebar-label {
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .main-content {
@@ -74,8 +93,13 @@ body {
 .card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s;
+}
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 /* Table */
@@ -86,12 +110,15 @@ body {
 }
 .data-table th {
   text-align: left;
-  padding: 8px 12px;
-  font-weight: 500;
+  padding: 10px 12px;
+  font-weight: 600;
   color: #64748b;
   border-bottom: 1px solid var(--border);
   background: #f8fafc;
   white-space: nowrap;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .data-table td {
   padding: 10px 12px;
@@ -111,16 +138,31 @@ body {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 9999px;
+  border-radius: 6px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-/* Tier badges */
-.tier-A { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
-.tier-B { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.tier-C { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+/* Tier badges - premium styling */
+.tier-A {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.tier-B {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+  font-weight: 700;
+}
+.tier-C {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
 
 /* Button */
 .btn {
@@ -136,22 +178,29 @@ body {
   transition: all 0.15s;
   white-space: nowrap;
 }
-.btn-primary {
-  background: #0f172a;
-  color: #f8fafc;
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
-.btn-primary:hover { background: #1e293b; }
+.btn-primary {
+  background: var(--accent-gradient);
+  color: #ffffff;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
 .btn-secondary {
-  background: #f1f5f9;
+  background: #ffffff;
   color: #334155;
   border: 1px solid #e2e8f0;
 }
-.btn-secondary:hover { background: #e2e8f0; }
+.btn-secondary:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
 .btn-ghost {
   background: transparent;
   color: #64748b;
 }
-.btn-ghost:hover { background: #f1f5f9; }
+.btn-ghost:hover:not(:disabled) { background: #f1f5f9; }
 
 /* Input */
 .input {
@@ -163,9 +212,12 @@ body {
   background: #ffffff;
   color: #0f172a;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.input:focus { border-color: #94a3b8; }
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
 .input::placeholder { color: #94a3b8; }
 
 /* Select */
@@ -179,8 +231,12 @@ body {
   color: #0f172a;
   cursor: pointer;
   outline: none;
+  transition: border-color 0.15s;
 }
-.select:focus { border-color: #94a3b8; }
+.select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
 
 /* Silent alert */
 .silent-dot {
@@ -205,19 +261,87 @@ body {
 .stat-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-gradient);
+  border-radius: 3px 0 0 3px;
 }
 .stat-value {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
 }
 .stat-label {
   font-size: 12px;
-  color: #64748b;
+  color: #94a3b8;
   margin-top: 4px;
+}
+
+/* Engagement color coding */
+.engagement-high { color: #16a34a; font-weight: 600; }
+.engagement-mid { color: #2563eb; }
+.engagement-low { color: #94a3b8; }
+
+/* Community icons */
+.community-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border-radius: 4px;
+  border: 1px solid #bbf7d0;
+}
+
+/* Discovery card grid */
+.discover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+.discover-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+}
+.discover-card:hover {
+  border-color: var(--accent-light);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1);
+}
+.discover-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Profile score bar */
+.score-bar {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
 }
 
 /* Loading */
@@ -229,4 +353,17 @@ body {
   background: #e2e8f0;
   border-radius: 4px;
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Voice recording animation */
+@keyframes recording-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+}
+.recording-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #dc2626;
+  animation: recording-pulse 1s ease-in-out infinite;
 }

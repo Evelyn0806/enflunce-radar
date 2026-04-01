@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { clampEngagementRate } from '@/lib/utils'
 import { getTwikitUser, getTwikitUserTweets } from '@/lib/twikit'
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle } from '@/lib/x-api-fallback'
 
@@ -56,13 +57,14 @@ export async function POST(req: NextRequest) {
       }
 
       const avgEngagement = totalEngagement / tweets.length
-      const engagementRate = (avgEngagement / kol.followers_count) * 100
+      const rawRate = (avgEngagement / kol.followers_count) * 100
+      const engagementRate = clampEngagementRate(rawRate, kol.followers_count)
 
       // Update database
       await supabase
         .from('kols')
         .update({
-          avg_engagement_rate: Math.round(engagementRate * 100) / 100,
+          avg_engagement_rate: engagementRate,
           last_post_at: lastPostAt,
         })
         .eq('id', kolId)

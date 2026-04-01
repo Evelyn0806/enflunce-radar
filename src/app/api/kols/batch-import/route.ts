@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { computeTier } from '@/lib/utils'
+import { computeTier, detectLanguage } from '@/lib/utils'
 import { getTwikitUser, TwikitUser } from '@/lib/twikit'
 import { fetchXUsersByHandles } from '@/lib/x-api-fallback'
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     tier: computeTier(u.followers_count, null),
     status: 'pending',
     status_flag: 'none',
-    language: 'en',
+    language: detectLanguage(u.description ?? null, u.name),
   }))
 
   const { data, error } = await supabase

@@ -44,34 +44,46 @@ export async function POST(
     ...(baseURL && { baseURL })
   })
 
-  const prompt = `You are analyzing a crypto KOL (Key Opinion Leader) on X (Twitter) for a prediction market platform (similar to Polymarket).
+  const prompt = `You are an expert KOL analyst for a prediction market platform (Polymarket-like). Analyze this crypto KOL on X (Twitter).
 
 KOL Profile:
 - Handle: @${kol.x_handle}
 - Display Name: ${kol.display_name ?? 'N/A'}
 - Bio: ${kol.bio ?? 'No bio available'}
 - Followers: ${kol.followers_count?.toLocaleString()}
+- Following: ${kol.following_count?.toLocaleString()}
+- Posts: ${kol.posts_count?.toLocaleString()}
 - Language: ${kol.language}
+- Engagement Rate: ${kol.avg_engagement_rate != null ? kol.avg_engagement_rate + '%' : 'Unknown'}
+- Has Private Community: ${kol.has_private_community ? 'Yes' : 'No'}
 
-Available roles: ${ROLES.join(', ')}
+Available roles: ${ROLES.map((r) => `${r} (${ROLE_DESCRIPTIONS[r]})`).join(', ')}
 
 Tasks:
 1. Identify 1-3 roles that best fit this KOL
 2. Rate confidence: low, medium, or high
-3. Write a 2-3 sentence summary
-4. Write brief analysis notes
+3. Write a 2-3 sentence summary (in the same language as the KOL's primary language)
+4. Determine content style: one of "educational", "entertainment", "data-driven", "news", "opinion", "mixed"
+5. Describe target audience in 1 sentence (demographics, interests, crypto experience level)
+6. Rate collaboration value 1-10 (10 = highest value for prediction market partnership)
+7. Suggest the best collaboration type: one of "sponsored_post", "ambassador", "content_series", "community_collab", "event_host", "data_partnership"
+8. Brief analysis notes explaining your reasoning
 
 IMPORTANT: Respond ONLY with valid JSON, no other text:
 {
   "potential_roles": ["role1", "role2"],
   "role_confidence": "medium",
   "ai_summary": "...",
+  "content_style": "educational",
+  "audience_profile": "...",
+  "collab_value_score": 7,
+  "recommended_collab_type": "ambassador",
   "role_analysis_notes": "..."
 }`
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
+    max_tokens: 1024,
     messages: [{ role: 'user', content: prompt }],
   })
 
@@ -81,6 +93,10 @@ IMPORTANT: Respond ONLY with valid JSON, no other text:
     potential_roles: KolRole[]
     role_confidence: RoleConfidence
     ai_summary: string
+    content_style?: string
+    audience_profile?: string
+    collab_value_score?: number
+    recommended_collab_type?: string
     role_analysis_notes: string
   }
 
@@ -104,11 +120,20 @@ IMPORTANT: Respond ONLY with valid JSON, no other text:
   // Validate roles
   parsed.potential_roles = (parsed.potential_roles ?? []).filter((r) => ROLES.includes(r))
 
+  // Store extended analysis in role_analysis_notes as JSON
+  const extendedAnalysis = JSON.stringify({
+    notes: parsed.role_analysis_notes,
+    content_style: parsed.content_style ?? 'mixed',
+    audience_profile: parsed.audience_profile ?? '',
+    collab_value_score: parsed.collab_value_score ?? 5,
+    recommended_collab_type: parsed.recommended_collab_type ?? 'sponsored_post',
+  })
+
   // Save to DB
   await supabase.from('kols').update({
     potential_roles: parsed.potential_roles,
     role_confidence: parsed.role_confidence,
-    role_analysis_notes: parsed.role_analysis_notes,
+    role_analysis_notes: extendedAnalysis,
     role_analyzed_at: new Date().toISOString(),
     ai_summary: parsed.ai_summary,
     ai_summary_updated_at: new Date().toISOString(),

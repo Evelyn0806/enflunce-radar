@@ -32,6 +32,7 @@ export default function KolDetailClient({ kol, collabs, logs }: Props) {
   const [flag, setFlag] = useState<StatusFlag>(kol.status_flag)
   const [notes, setNotes] = useState(kol.notes ?? '')
   const [aiLoading, setAiLoading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const [aiSummary, setAiSummary] = useState(kol.ai_summary ?? '')
   const [roles, setRoles] = useState<KolRole[]>(kol.potential_roles ?? [])
 
@@ -67,6 +68,40 @@ export default function KolDetailClient({ kol, collabs, logs }: Props) {
       alert('AI 分析请求失败，请检查网络连接')
     }
     setAiLoading(false)
+  }
+
+  function toggleVoice() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const W = window as any
+    const SpeechRecognitionCtor = W.SpeechRecognition ?? W.webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) {
+      alert('当前浏览器不支持语音识别')
+      return
+    }
+
+    if (isRecording) {
+      setIsRecording(false)
+      return
+    }
+
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = kol.language === 'zh' ? 'zh-CN' : 'en-US'
+    recognition.continuous = true
+    recognition.interimResults = false
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as ArrayLike<{ 0: { transcript: string } }>)
+        .map((r) => r[0].transcript)
+        .join('')
+      setNotes((prev) => (prev ? prev + '\n' : '') + transcript)
+    }
+
+    recognition.onend = () => setIsRecording(false)
+    recognition.onerror = () => setIsRecording(false)
+
+    recognition.start()
+    setIsRecording(true)
   }
 
   return (
@@ -180,7 +215,23 @@ export default function KolDetailClient({ kol, collabs, logs }: Props) {
 
             {/* Notes */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>备注</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <label style={{ fontSize: 12, color: '#64748b' }}>备注</label>
+                <button
+                  onClick={toggleVoice}
+                  title={isRecording ? '停止录音' : '语音输入'}
+                  style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    border: 'none', cursor: 'pointer', fontSize: 12,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isRecording ? '#fecaca' : '#f1f5f9',
+                    color: isRecording ? '#dc2626' : '#64748b',
+                  }}
+                >
+                  {isRecording ? <span className="recording-indicator" /> : '🎤'}
+                </button>
+                {isRecording && <span style={{ fontSize: 11, color: '#dc2626' }}>录音中...</span>}
+              </div>
               <textarea
                 className="input"
                 style={{ minHeight: 80, resize: 'vertical' }}
@@ -268,11 +319,49 @@ export default function KolDetailClient({ kol, collabs, logs }: Props) {
               </p>
             )}
 
-            {kol.role_analysis_notes && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#475569' }}>
-                {kol.role_analysis_notes}
-              </div>
-            )}
+            {kol.role_analysis_notes && (() => {
+              let extended: { notes?: string; content_style?: string; audience_profile?: string; collab_value_score?: number; recommended_collab_type?: string } | null = null
+              try { extended = JSON.parse(kol.role_analysis_notes) } catch { /* plain text fallback */ }
+
+              if (extended && extended.content_style) {
+                const styleLabels: Record<string, string> = { educational: '教育型', entertainment: '娱乐型', 'data-driven': '数据型', news: '新闻型', opinion: '观点型', mixed: '综合型' }
+                const collabLabels: Record<string, string> = { sponsored_post: '赞助推文', ambassador: '品牌大使', content_series: '内容系列', community_collab: '社群合作', event_host: '活动主持', data_partnership: '数据合作' }
+                return (
+                  <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>内容风格</div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{styleLabels[extended.content_style] ?? extended.content_style}</div>
+                      </div>
+                      <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>合作价值</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: (extended.collab_value_score ?? 0) >= 7 ? '#16a34a' : (extended.collab_value_score ?? 0) >= 4 ? '#d97706' : '#dc2626' }}>
+                          {extended.collab_value_score ?? '—'} / 10
+                        </div>
+                      </div>
+                      <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>推荐合作形式</div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{collabLabels[extended.recommended_collab_type ?? ''] ?? extended.recommended_collab_type ?? '—'}</div>
+                      </div>
+                      <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>受众画像</div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>{extended.audience_profile ?? '—'}</div>
+                      </div>
+                    </div>
+                    {extended.notes && (
+                      <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#475569' }}>
+                        {extended.notes}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              return (
+                <div style={{ marginTop: 12, padding: '10px 12px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#475569' }}>
+                  {kol.role_analysis_notes}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Recent collabs */}
