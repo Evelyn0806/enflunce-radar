@@ -3,9 +3,9 @@ function resolveTwikitUrl(): string {
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_URL
   if (site) {
     const origin = site.startsWith('http') ? site : `https://${site}`
-    return `${origin}/api/twikit`
+    return `${origin}/api/xbridge`
   }
-  return 'http://localhost:3000/api/twikit'
+  return 'http://localhost:3000/api/xbridge'
 }
 const baseUrl = resolveTwikitUrl()
 
