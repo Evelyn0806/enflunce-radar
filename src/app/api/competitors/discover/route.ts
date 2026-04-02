@@ -86,6 +86,27 @@ export async function POST(req: NextRequest) {
   const results = [...seen.values()]
     .sort((a, b) => b.followers_count - a.followers_count)
 
+  // Auto-tag existing KOLs in directory with this competitor affiliation
+  for (const r of results) {
+    if (r.already_in_db) {
+      try {
+        const { data: kol } = await supabase
+          .from('kols')
+          .select('id, competitor_affiliations')
+          .eq('x_handle', r.x_handle)
+          .single()
+        if (kol) {
+          const current: string[] = kol.competitor_affiliations ?? []
+          if (!current.includes(competitor_name)) {
+            await supabase.from('kols').update({
+              competitor_affiliations: [...current, competitor_name],
+            }).eq('id', kol.id)
+          }
+        }
+      } catch { /* skip */ }
+    }
+  }
+
   return NextResponse.json({
     results,
     total: results.length,
