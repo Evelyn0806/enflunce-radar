@@ -263,28 +263,20 @@ export default function CompetitorClient({ kols }: Props) {
 
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: competitorTweets.length > 0 || results.length > 0 ? 10 : 0 }}>
                 <button
+                  className="btn btn-primary"
+                  style={{ fontSize: 11, padding: '4px 10px', flex: 2 }}
+                  onClick={() => discoverCompetitorKols(c.name, c.handle)}
+                  disabled={!!scanning}
+                >
+                  {scanning === `${c.name}-discover` ? '全网搜索中...' : '🔍 搜索关联 KOL'}
+                </button>
+                <button
                   className="btn btn-secondary"
                   style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
                   onClick={() => scanCompetitorTweets(c.handle, c.name)}
                   disabled={!!scanning}
                 >
-                  {isScanningTweets ? '...' : '查看动态'}
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
-                  onClick={() => scanKolAffiliations(c.name, c.handle)}
-                  disabled={!!scanning}
-                >
-                  {isScanningKols ? '...' : '扫描名录'}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
-                  onClick={() => discoverCompetitorKols(c.name, c.handle)}
-                  disabled={!!scanning}
-                >
-                  {scanning === `${c.name}-discover` ? '搜索中...' : '发现新 KOL'}
+                  {isScanningTweets ? '...' : '竞品动态'}
                 </button>
               </div>
 
