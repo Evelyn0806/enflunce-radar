@@ -410,6 +410,15 @@ function scoreKolProfile(item: DiscoveryResult, stats: ProfileStats): number {
   return Math.max(0, Math.min(100, score))
 }
 
+async function loadRejectedHandles(): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('kols')
+    .select('x_handle')
+    .eq('status_flag', 'stop')
+    .eq('status', 'terminated')
+  return new Set((data ?? []).map((k) => k.x_handle))
+}
+
 async function annotateExistingKols(results: DiscoveryResult[]) {
   const handles = [...new Set(results.map((item) => item.x_handle).filter(Boolean))]
   if (handles.length === 0) return results
@@ -606,7 +615,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const profileStats = await loadProfileStats()
+    const [profileStats, rejectedHandles] = await Promise.all([
+      loadProfileStats(),
+      loadRejectedHandles(),
+    ])
 
     for (const item of list) {
       item.relevance_score = computeRelevance(item)
@@ -615,6 +627,7 @@ export async function POST(req: NextRequest) {
 
     const results = list
       .filter((item) => item.profile_score >= 35)
+      .filter((item) => !rejectedHandles.has(item.x_handle))
       .sort((a, b) => {
         if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score
         return b.followers_count - a.followers_count

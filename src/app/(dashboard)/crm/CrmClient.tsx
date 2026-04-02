@@ -49,6 +49,8 @@ export default function CrmClient({ collabs, kols, filterKolId }: Props) {
   const [form, setForm] = useState({ ...EMPTY_FORM, kol_id: filterKolId ?? '' })
   const [saving, setSaving] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [kolSearch, setKolSearch] = useState(filterKolId ? `@${kols.find((k) => k.id === filterKolId)?.x_handle ?? ''}` : '')
+  const [showKolDropdown, setShowKolDropdown] = useState(false)
 
   async function deleteCollab(id: string, title: string) {
     if (!confirm(`确定删除合作"${title}"？`)) return
@@ -99,6 +101,7 @@ export default function CrmClient({ collabs, kols, filterKolId }: Props) {
     setSaving(false)
     setShowForm(false)
     setForm({ ...EMPTY_FORM })
+    setKolSearch('')
     router.refresh()
   }
 
@@ -135,15 +138,67 @@ export default function CrmClient({ collabs, kols, filterKolId }: Props) {
         <div className="card">
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>新增合作记录</h3>
           <form onSubmit={saveCollab} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {/* KOL */}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>KOL *</label>
-              <select className="select" style={{ width: '100%' }} value={form.kol_id} onChange={(e) => setField('kol_id', e.target.value)} required>
-                <option value="">选择 KOL...</option>
-                {kols.map((k) => (
-                  <option key={k.id} value={k.id}>@{k.x_handle} {k.display_name ? `(${k.display_name})` : ''}</option>
-                ))}
-              </select>
+            {/* KOL - searchable input with autocomplete */}
+            <div style={{ gridColumn: '1 / -1', position: 'relative' }}>
+              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>KOL *（输入 handle 或名称）</label>
+              {filterKolId ? (
+                <div style={{ padding: '8px 12px', background: '#f1f5f9', borderRadius: 8, fontSize: 13, color: '#0f172a' }}>
+                  @{kols.find((k) => k.id === filterKolId)?.x_handle ?? filterKolId}
+                  <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>（来自 KOL 详情）</span>
+                </div>
+              ) : (
+                <>
+                  <input
+                    className="input"
+                    placeholder="输入 @handle 或名称搜索..."
+                    value={kolSearch}
+                    onChange={(e) => {
+                      setKolSearch(e.target.value)
+                      setField('kol_id', '')
+                      setShowKolDropdown(true)
+                    }}
+                    onFocus={() => setShowKolDropdown(true)}
+                    required={!form.kol_id}
+                  />
+                  {showKolDropdown && kolSearch.trim() && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+                      maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    }}>
+                      {kols
+                        .filter((k) => {
+                          const q = kolSearch.toLowerCase().replace('@', '')
+                          return k.x_handle.includes(q) || (k.display_name ?? '').toLowerCase().includes(q)
+                        })
+                        .slice(0, 8)
+                        .map((k) => (
+                          <div
+                            key={k.id}
+                            style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}
+                            onMouseDown={() => {
+                              setField('kol_id', k.id)
+                              setKolSearch(`@${k.x_handle}${k.display_name ? ` (${k.display_name})` : ''}`)
+                              setShowKolDropdown(false)
+                            }}
+                          >
+                            <span style={{ fontWeight: 500 }}>@{k.x_handle}</span>
+                            {k.display_name && <span style={{ color: '#64748b', marginLeft: 6 }}>{k.display_name}</span>}
+                          </div>
+                        ))
+                      }
+                      {kols.filter((k) => {
+                        const q = kolSearch.toLowerCase().replace('@', '')
+                        return k.x_handle.includes(q) || (k.display_name ?? '').toLowerCase().includes(q)
+                      }).length === 0 && (
+                        <div style={{ padding: '8px 12px', fontSize: 12, color: '#94a3b8' }}>
+                          未找到匹配的 KOL，请先在 KOL 名录中导入
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Title */}

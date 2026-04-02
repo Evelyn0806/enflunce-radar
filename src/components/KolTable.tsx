@@ -18,12 +18,27 @@ function engagementClass(rate: number | null): string {
 function communityIcons(platforms: string[] | null, links: string[] | null) {
   if (!platforms?.length && !links?.length) return null
   const allText = [...(platforms ?? []), ...(links ?? [])].join(' ').toLowerCase()
-  const icons: { label: string; icon: string }[] = []
-  if (allText.includes('telegram') || allText.includes('t.me')) icons.push({ label: 'TG', icon: '✈' })
-  if (allText.includes('discord')) icons.push({ label: 'DC', icon: '💬' })
-  if (allText.includes('wechat') || allText.includes('微信')) icons.push({ label: 'WX', icon: '💚' })
-  if (allText.includes('whatsapp') || allText.includes('wa.me')) icons.push({ label: 'WA', icon: '📱' })
-  if (icons.length === 0 && (platforms?.length || links?.length)) icons.push({ label: '社群', icon: '👥' })
+  const allLinks = links ?? []
+  const icons: { label: string; icon: string; url: string | null }[] = []
+
+  if (allText.includes('telegram') || allText.includes('t.me')) {
+    const tgLink = allLinks.find((l) => l.toLowerCase().includes('t.me'))
+    icons.push({ label: 'TG', icon: '✈', url: tgLink ? (tgLink.startsWith('http') ? tgLink : `https://${tgLink}`) : null })
+  }
+  if (allText.includes('discord')) {
+    const dcLink = allLinks.find((l) => l.toLowerCase().includes('discord'))
+    icons.push({ label: 'DC', icon: '💬', url: dcLink ? (dcLink.startsWith('http') ? dcLink : `https://${dcLink}`) : null })
+  }
+  if (allText.includes('wechat') || allText.includes('微信')) {
+    icons.push({ label: 'WX', icon: '💚', url: null })
+  }
+  if (allText.includes('whatsapp') || allText.includes('wa.me')) {
+    const waLink = allLinks.find((l) => l.toLowerCase().includes('wa.me') || l.toLowerCase().includes('whatsapp'))
+    icons.push({ label: 'WA', icon: '📱', url: waLink ? (waLink.startsWith('http') ? waLink : `https://${waLink}`) : null })
+  }
+  if (icons.length === 0 && allLinks.length > 0) {
+    icons.push({ label: '社群', icon: '👥', url: allLinks[0].startsWith('http') ? allLinks[0] : `https://${allLinks[0]}` })
+  }
   return icons
 }
 
@@ -60,9 +75,7 @@ export default function KolTable({ kols }: Props) {
             <th>互动率</th>
             <th>私域</th>
             <th>最近发帖</th>
-            <th>角色</th>
             <th>状态</th>
-            <th>标记</th>
             <th></th>
           </tr>
         </thead>
@@ -146,9 +159,15 @@ export default function KolTable({ kols }: Props) {
                   {kol.has_private_community && icons ? (
                     <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                       {icons.map((ic) => (
-                        <span key={ic.label} className="community-icon">
-                          {ic.icon} {ic.label}
-                        </span>
+                        ic.url ? (
+                          <a key={ic.label} href={ic.url} target="_blank" rel="noopener noreferrer" className="community-icon" style={{ textDecoration: 'none', cursor: 'pointer' }} title={`进入 ${ic.label} 私域`}>
+                            {ic.icon} {ic.label}
+                          </a>
+                        ) : (
+                          <span key={ic.label} className="community-icon">
+                            {ic.icon} {ic.label}
+                          </span>
+                        )
                       ))}
                     </div>
                   ) : (
@@ -161,32 +180,11 @@ export default function KolTable({ kols }: Props) {
                   {formatDate(kol.last_post_at)}
                 </td>
 
-                {/* Roles */}
-                <td>
-                  {kol.potential_roles?.slice(0, 2).map((r) => (
-                    <span key={r} style={{
-                      fontSize: 10,
-                      background: '#f1f5f9',
-                      color: '#475569',
-                      padding: '1px 5px',
-                      borderRadius: 3,
-                      marginRight: 3,
-                    }}>
-                      {r}
-                    </span>
-                  ))}
-                </td>
-
-                {/* Status */}
+                {/* Status + Flag merged */}
                 <td>
                   <span className={`badge ${statusCfg.color}`}>
-                    {statusCfg.labelZh}
+                    {flagCfg.icon ? `${flagCfg.icon} ` : ''}{statusCfg.labelZh}
                   </span>
-                </td>
-
-                {/* Flag */}
-                <td style={{ fontSize: 14 }}>
-                  {flagCfg.icon || <span style={{ color: '#e2e8f0' }}>—</span>}
                 </td>
 
                 {/* Action */}

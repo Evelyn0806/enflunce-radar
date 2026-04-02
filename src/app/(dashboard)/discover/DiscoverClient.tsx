@@ -45,6 +45,24 @@ export default function DiscoverClient() {
   const [results, setResults] = useState<DiscoveryResult[]>([])
   const [rowState, setRowState] = useState<Map<string, RowState>>(new Map())
   const [importing, setImporting] = useState(false)
+  const [rejectedHandles, setRejectedHandles] = useState<Set<string>>(new Set())
+
+  // Load rejected handles on mount
+  useState(() => {
+    fetch('/api/kols/feedback').then((r) => r.json()).then((d) => {
+      setRejectedHandles(new Set(d.rejected ?? []))
+    }).catch(() => {})
+  })
+
+  async function rejectCard(r: DiscoveryResult) {
+    setResults((prev) => prev.filter((item) => item.twitter_id !== r.twitter_id))
+    setRejectedHandles((prev) => new Set([...prev, r.x_handle]))
+    await fetch('/api/kols/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x_handle: r.x_handle, bio: r.bio, followers_count: r.followers_count, signal: 'negative' }),
+    })
+  }
 
   async function search() {
     if (keywords.length === 0) return
@@ -63,9 +81,10 @@ export default function DiscoverClient() {
       setError(json.error ?? '搜索失败')
     } else {
       setError(json.warning ?? '')
-      setResults(json.results ?? [])
+      const filtered = (json.results ?? []).filter((r: DiscoveryResult) => !rejectedHandles.has(r.x_handle))
+      setResults(filtered)
       const map = new Map<string, RowState>()
-      for (const r of json.results ?? []) {
+      for (const r of filtered) {
         map.set(r.twitter_id, { selected: false, flag: 'none', language: r.language ?? 'en' })
       }
       setRowState(map)
@@ -324,6 +343,18 @@ export default function DiscoverClient() {
 
                   {/* Bottom controls */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      title="排除此 KOL（不符合画像）"
+                      onClick={() => rejectCard(r)}
+                      style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        border: '1px solid #fecaca', background: '#fef2f2',
+                        cursor: 'pointer', fontSize: 12, color: '#dc2626',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      ✕
+                    </button>
                     <select
                       className="select"
                       style={{ fontSize: 11, padding: '3px 24px 3px 6px', minWidth: 70 }}
