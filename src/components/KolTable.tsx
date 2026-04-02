@@ -45,6 +45,18 @@ function communityIcons(platforms: string[] | null, links: string[] | null) {
 export default function KolTable({ kols }: Props) {
   const router = useRouter()
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState<string | null>(null)
+
+  async function handleRefresh(id: string) {
+    setRefreshing(id)
+    await fetch('/api/kols/refresh-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kol_ids: [id] }),
+    })
+    setRefreshing(null)
+    router.refresh()
+  }
 
   async function handleDelete(id: string, handle: string) {
     if (!confirm(`确定删除 @${handle}？`)) return
@@ -190,6 +202,15 @@ export default function KolTable({ kols }: Props) {
                 {/* Action */}
                 <td>
                   <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ padding: '4px 8px', fontSize: 12 }}
+                      onClick={() => handleRefresh(kol.id)}
+                      disabled={refreshing === kol.id}
+                      title="刷新互动率"
+                    >
+                      {refreshing === kol.id ? '⏳' : '🔄'}
+                    </button>
                     <Link href={`/kols/${kol.id}`} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 12 }}>
                       详情
                     </Link>
