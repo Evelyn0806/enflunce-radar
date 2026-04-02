@@ -11,22 +11,20 @@ function isAffiliated(tweetText: string, competitorHandle: string): { affiliated
   const lower = tweetText.toLowerCase()
   const handleLower = competitorHandle.toLowerCase()
 
-  const paidPatterns = ['paid partnership', 'paid promo', '#ad ', '#sponsored', 'sponsored by', 'in partnership with', 'promoted by']
+  // 1. Paid partnership: tweet has paid/sponsored label AND mentions competitor
+  const paidPatterns = ['paid partnership', 'paid promo', '#ad ', '#sponsored', 'sponsored by', 'in partnership with', 'promoted by', 'paid by', 'collab with']
   for (const p of paidPatterns) {
-    if (lower.includes(p) && lower.includes(handleLower)) {
+    if (lower.includes(p) && (lower.includes(handleLower) || new RegExp(`@${handleLower}\\b`, 'i').test(tweetText))) {
       return { affiliated: true, reason: 'Paid partnership' }
     }
   }
 
+  // 2. @mention of competitor handle (direct tag = likely partnership or promotion)
   if (new RegExp(`@${handleLower}\\b`, 'i').test(tweetText)) {
-    return { affiliated: true, reason: `提及 @${competitorHandle}` }
+    return { affiliated: true, reason: `@${competitorHandle}` }
   }
 
-  // Also check if tweet mentions competitor name (not just handle)
-  if (lower.includes(handleLower)) {
-    return { affiliated: true, reason: `提及 ${competitorHandle}` }
-  }
-
+  // Plain text mention without @tag or paid label = NOT affiliated (could be casual discussion)
   return { affiliated: false, reason: '' }
 }
 
