@@ -46,6 +46,7 @@ export default function CompetitorClient({ kols }: Props) {
   const [scanning, setScanning] = useState<string | null>(null)
   const [tweets, setTweets] = useState<Map<string, CompetitorTweet[]>>(new Map())
   const [scanResults, setScanResults] = useState<Map<string, ScanResult[]>>(new Map())
+  const [discoverResults, setDiscoverResults] = useState<Map<string, ScanResult[]>>(new Map())
 
   // Add competitor form
   const [showAdd, setShowAdd] = useState(false)
@@ -147,6 +148,22 @@ export default function CompetitorClient({ kols }: Props) {
     setScanning(null)
   }
 
+  async function discoverCompetitorKols(name: string, handle: string) {
+    setScanning(`${name}-discover`)
+    try {
+      const res = await fetch('/api/competitors/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitor_name: name, competitor_handle: handle, min_followers: 1000 }),
+      })
+      const data = await res.json()
+      if (res.ok && data.results) {
+        setDiscoverResults((prev) => new Map(prev).set(name, data.results))
+      }
+    } catch { /* ignore */ }
+    setScanning(null)
+  }
+
   async function importKol(r: ScanResult, competitorName: string) {
     setImporting((prev) => new Set([...prev, r.x_handle]))
     await fetch('/api/kols/import', {
@@ -244,22 +261,30 @@ export default function CompetitorClient({ kols }: Props) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 6, marginBottom: competitorTweets.length > 0 || results.length > 0 ? 10 : 0 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: competitorTweets.length > 0 || results.length > 0 ? 10 : 0 }}>
                 <button
                   className="btn btn-secondary"
                   style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
                   onClick={() => scanCompetitorTweets(c.handle, c.name)}
                   disabled={!!scanning}
                 >
-                  {isScanningTweets ? '扫描中...' : '查看动态'}
+                  {isScanningTweets ? '...' : '查看动态'}
                 </button>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-secondary"
                   style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
                   onClick={() => scanKolAffiliations(c.name, c.handle)}
                   disabled={!!scanning}
                 >
-                  {isScanningKols ? '扫描 KOL 中...' : '扫描关联 KOL'}
+                  {isScanningKols ? '...' : '扫描名录'}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: 11, padding: '4px 10px', flex: 1 }}
+                  onClick={() => discoverCompetitorKols(c.name, c.handle)}
+                  disabled={!!scanning}
+                >
+                  {scanning === `${c.name}-discover` ? '搜索中...' : '发现新 KOL'}
                 </button>
               </div>
 
@@ -292,8 +317,18 @@ export default function CompetitorClient({ kols }: Props) {
         })}
       </div>
 
-      {/* Scan results as KOL cards */}
-      {[...scanResults.entries()].map(([compName, results]) => {
+      {/* All KOL card results (scan + discover merged, deduped) */}
+      {[...new Set([...scanResults.keys(), ...discoverResults.keys()])].map((compName) => {
+        const scan = scanResults.get(compName) ?? []
+        const discover = discoverResults.get(compName) ?? []
+        const seenHandles = new Set<string>()
+        const results: ScanResult[] = []
+        for (const r of [...scan, ...discover]) {
+          if (!seenHandles.has(r.x_handle)) {
+            seenHandles.add(r.x_handle)
+            results.push(r)
+          }
+        }
         if (results.length === 0) return null
         const comp = competitors.find((c) => c.name === compName)
         return (
