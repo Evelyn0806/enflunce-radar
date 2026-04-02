@@ -27,6 +27,7 @@ export default async function KolsPage({
   let query = supabase
     .from('kols_with_computed')
     .select('*')
+    .not('x_handle', 'like', '__competitor__%')
     .order('followers_count', { ascending: false })
 
   if (params.status) query = query.eq('status', params.status)

@@ -73,20 +73,7 @@ export async function POST(req: NextRequest) {
             tweet_text: tweet.text.substring(0, 200),
           })
 
-          // Save to competitor_kol_maps table
-          try {
-            await supabase.from('competitor_kol_maps').insert({
-              kol_id: kol.id,
-              competitor: competitor_name,
-              evidence_url: `https://x.com/${kol.x_handle}/status/${tweet.id}`,
-              detected_at: new Date().toISOString(),
-              notes: check.reason,
-            })
-          } catch {
-            // Ignore duplicate insert errors
-          }
-
-          // Also update kols.competitor_affiliations
+          // Update kols.competitor_affiliations
           const { data: currentKol } = await supabase
             .from('kols')
             .select('competitor_affiliations')
