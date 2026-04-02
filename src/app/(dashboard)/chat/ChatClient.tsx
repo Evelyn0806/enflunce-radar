@@ -62,10 +62,10 @@ export default function ChatClient() {
             <div style={{ fontSize: 14, marginBottom: 8 }}>试试问我：</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
               {[
-                '帮我找互动率最高的中文 KOL',
-                '哪些 Tier A 的 KOL 还没合作？',
-                '@cobie 适合做什么类型的合作？',
-                '有哪些 KOL 有私域社群？',
+                '帮我设置 KOL 发新帖时自动推送到 TG 群',
+                '在 Telegram 里用 /add /status /search 操作 Radar',
+                '怎么让团队多人在 TG 群里协作管理 KOL？',
+                '帮我生成本周 KOL 活跃度日报和合作 ROI 摘要',
               ].map((q) => (
                 <button
                   key={q}
