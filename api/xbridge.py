@@ -16,12 +16,59 @@ except Exception as e:
     search_users = None
 
 
+def load_cookie_pools():
+    """Load multiple cookie sets for rotation. Supports:
+    - TWIKIT_COOKIES_JSON: primary account
+    - TWIKIT_COOKIES_JSON_2: secondary account
+    - TWIKIT_COOKIES_JSON_3: tertiary account (optional)
+    """
+    pools = []
+    for key in ['TWIKIT_COOKIES_JSON', 'TWIKIT_COOKIES_JSON_2', 'TWIKIT_COOKIES_JSON_3']:
+        raw = os.environ.get(key)
+        if raw:
+            try:
+                pools.append(json.loads(raw))
+            except json.JSONDecodeError:
+                pass
+    return pools
+
+
+# Track which cookie index to use next (round-robin)
+_cookie_index = 0
+
+
 def get_client():
-    raw = os.environ.get('TWIKIT_COOKIES_JSON')
-    if not raw:
-        raise RuntimeError('TWIKIT_COOKIES_JSON is not configured')
-    cookies = json.loads(raw)
+    global _cookie_index
+    pools = load_cookie_pools()
+    if not pools:
+        raise RuntimeError('No TWIKIT_COOKIES_JSON configured')
+    cookies = pools[_cookie_index % len(pools)]
     return create_client_from_cookie_dict(cookies)
+
+
+def rotate_client():
+    """Switch to next cookie on rate limit."""
+    global _cookie_index
+    _cookie_index += 1
+
+
+def run_with_rotation(coro_fn, *args, max_retries=None):
+    """Try the request, on 429 rotate to next cookie and retry."""
+    pools = load_cookie_pools()
+    retries = max_retries or len(pools)
+
+    for attempt in range(retries):
+        client = get_client()
+        try:
+            return asyncio.run(coro_fn(client, *args))
+        except Exception as e:
+            error_str = str(e).lower()
+            if '429' in error_str or 'rate limit' in error_str:
+                if attempt < retries - 1:
+                    rotate_client()
+                    continue
+            raise
+    raise RuntimeError('All cookie accounts rate limited')
 
 
 def send_json(handler, status, data):
@@ -36,8 +83,12 @@ class handler(BaseHTTPRequestHandler):
         if IMPORT_ERROR:
             send_json(self, 500, {'error': 'Import failed', 'details': IMPORT_ERROR})
         else:
-            has_cookies = bool(os.environ.get('TWIKIT_COOKIES_JSON'))
-            send_json(self, 200, {'status': 'ok', 'has_cookies': has_cookies})
+            pools = load_cookie_pools()
+            send_json(self, 200, {
+                'status': 'ok',
+                'accounts': len(pools),
+                'active_index': _cookie_index % max(len(pools), 1),
+            })
 
     def do_POST(self):
         if IMPORT_ERROR:
@@ -48,20 +99,19 @@ class handler(BaseHTTPRequestHandler):
             length = int(self.headers.get('content-length', '0'))
             body = self.rfile.read(length) if length else b'{}'
             payload = json.loads(body.decode('utf-8'))
-            client = get_client()
 
             action = payload.get('action')
 
             if action == 'user':
-                result = asyncio.run(get_user_by_screen_name(client, payload['screen_name']))
+                result = run_with_rotation(get_user_by_screen_name, payload['screen_name'])
             elif action == 'tweet-search':
-                result = asyncio.run(search_tweets(client, payload['query'], int(payload.get('count', 20))))
+                result = run_with_rotation(search_tweets, payload['query'], int(payload.get('count', 20)))
             elif action == 'user-search':
-                result = asyncio.run(search_users(client, payload['query'], int(payload.get('count', 20))))
+                result = run_with_rotation(search_users, payload['query'], int(payload.get('count', 20)))
             elif action == 'user-tweets':
-                result = asyncio.run(get_user_tweets(client, payload['user_id'], int(payload.get('count', 20))))
+                result = run_with_rotation(get_user_tweets, payload['user_id'], int(payload.get('count', 20)))
             elif action == 'user-following':
-                result = asyncio.run(get_user_following(client, payload['user_id'], int(payload.get('count', 50))))
+                result = run_with_rotation(get_user_following, payload['user_id'], int(payload.get('count', 50)))
             else:
                 send_json(self, 404, {'error': 'Not found'})
                 return
