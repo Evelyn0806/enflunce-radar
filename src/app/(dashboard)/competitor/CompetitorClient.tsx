@@ -186,8 +186,14 @@ export default function CompetitorClient({ kols }: Props) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>竞品雷达</h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 2, position: 'relative', display: 'inline-block' }}>
             监控竞品动态、自动识别 Paid Partnership 关联 KOL
+            <span
+              style={{ marginLeft: 6, cursor: 'help', color: '#6366f1', fontWeight: 500, position: 'relative' }}
+              title={'关联标准：\n1. Paid Partnership：推文含 paid partnership / #ad / sponsored 等标签 + 提及竞品 → 直接关联\n2. @提及 ≥3次：最近10条推文中 @提及竞品handle ≥3次 → 关联（说明频繁互动）\n3. 纯文字提及（如"I bet on Polymarket"）→ 不算关联'}
+            >
+              ⓘ
+            </span>
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAdd(!showAdd)}>

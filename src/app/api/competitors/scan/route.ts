@@ -7,25 +7,39 @@ import { getTwikitUser, getTwikitUserTweets } from '@/lib/twikit'
 
 const BATCH_SIZE = 5
 
-function isAffiliated(tweetText: string, competitorHandle: string): { affiliated: boolean; reason: string } {
-  const lower = tweetText.toLowerCase()
-  const handleLower = competitorHandle.toLowerCase()
+const MENTION_THRESHOLD = 3 // @mention must appear in ≥3 tweets to count
 
-  // 1. Paid partnership: tweet has paid/sponsored label AND mentions competitor
-  const paidPatterns = ['paid partnership', 'paid promo', '#ad ', '#sponsored', 'sponsored by', 'in partnership with', 'promoted by', 'paid by', 'collab with']
-  for (const p of paidPatterns) {
-    if (lower.includes(p) && (lower.includes(handleLower) || new RegExp(`@${handleLower}\\b`, 'i').test(tweetText))) {
-      return { affiliated: true, reason: 'Paid partnership' }
+function checkTweetsAffiliation(tweets: { text: string }[], competitorHandle: string): { affiliated: boolean; reason: string; evidence: string } {
+  const handleLower = competitorHandle.toLowerCase()
+  const mentionRegex = new RegExp(`@${handleLower}\\b`, 'i')
+  let mentionCount = 0
+  let paidEvidence = ''
+  let mentionEvidence = ''
+
+  for (const tweet of tweets) {
+    const lower = tweet.text.toLowerCase()
+
+    // 1. Paid partnership: any single tweet with paid label + competitor = instant match
+    const paidPatterns = ['paid partnership', 'paid promo', '#ad ', '#sponsored', 'sponsored by', 'in partnership with', 'promoted by', 'paid by', 'collab with']
+    for (const p of paidPatterns) {
+      if (lower.includes(p) && (lower.includes(handleLower) || mentionRegex.test(tweet.text))) {
+        return { affiliated: true, reason: 'Paid partnership', evidence: tweet.text.substring(0, 200) }
+      }
+    }
+
+    // 2. Count @mentions across all tweets
+    if (mentionRegex.test(tweet.text)) {
+      mentionCount++
+      if (!mentionEvidence) mentionEvidence = tweet.text.substring(0, 200)
     }
   }
 
-  // 2. @mention of competitor handle (direct tag = likely partnership or promotion)
-  if (new RegExp(`@${handleLower}\\b`, 'i').test(tweetText)) {
-    return { affiliated: true, reason: `@${competitorHandle}` }
+  // @mention threshold: ≥3 times in recent tweets = affiliated
+  if (mentionCount >= MENTION_THRESHOLD) {
+    return { affiliated: true, reason: `@${competitorHandle} ×${mentionCount}`, evidence: mentionEvidence }
   }
 
-  // Plain text mention without @tag or paid label = NOT affiliated (could be casual discussion)
-  return { affiliated: false, reason: '' }
+  return { affiliated: false, reason: '', evidence: '' }
 }
 
 export async function POST(req: NextRequest) {
@@ -82,38 +96,35 @@ export async function POST(req: NextRequest) {
       const tweets = await getTwikitUserTweets(user.id, 10)
       scanned++
 
-      for (const tweet of tweets) {
-        const check = isAffiliated(tweet.text, competitor_handle)
-        if (check.affiliated) {
-          affiliated.push({
-            kol_id: kol.id,
-            x_handle: kol.x_handle,
-            display_name: kol.display_name,
-            avatar_url: kol.avatar_url,
-            bio: kol.bio,
-            followers_count: kol.followers_count,
-            following_count: kol.following_count ?? 0,
-            posts_count: kol.posts_count ?? 0,
-            tier: kol.tier,
-            language: kol.language ?? 'en',
-            reason: check.reason,
-            tweet_text: tweet.text.substring(0, 200),
-            already_in_db: existingHandles.has(kol.x_handle),
-          })
+      const check = checkTweetsAffiliation(tweets, competitor_handle)
+      if (check.affiliated) {
+        affiliated.push({
+          kol_id: kol.id,
+          x_handle: kol.x_handle,
+          display_name: kol.display_name,
+          avatar_url: kol.avatar_url,
+          bio: kol.bio,
+          followers_count: kol.followers_count,
+          following_count: kol.following_count ?? 0,
+          posts_count: kol.posts_count ?? 0,
+          tier: kol.tier,
+          language: kol.language ?? 'en',
+          reason: check.reason,
+          tweet_text: check.evidence,
+          already_in_db: existingHandles.has(kol.x_handle),
+        })
 
-          const { data: currentKol } = await supabase
-            .from('kols')
-            .select('competitor_affiliations')
-            .eq('id', kol.id)
-            .single()
+        const { data: currentKol } = await supabase
+          .from('kols')
+          .select('competitor_affiliations')
+          .eq('id', kol.id)
+          .single()
 
-          const current = currentKol?.competitor_affiliations ?? []
-          if (!current.includes(competitor_name)) {
-            await supabase.from('kols').update({
-              competitor_affiliations: [...current, competitor_name],
-            }).eq('id', kol.id)
-          }
-          break
+        const current = currentKol?.competitor_affiliations ?? []
+        if (!current.includes(competitor_name)) {
+          await supabase.from('kols').update({
+            competitor_affiliations: [...current, competitor_name],
+          }).eq('id', kol.id)
         }
       }
     } catch {
