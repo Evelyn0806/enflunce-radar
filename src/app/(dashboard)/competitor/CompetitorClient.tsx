@@ -28,8 +28,16 @@ interface ScanResult {
   kol_id: string
   x_handle: string
   display_name: string | null
+  avatar_url: string | null
+  bio: string | null
+  followers_count: number
+  following_count: number
+  posts_count: number
+  tier: string
+  language: string
   reason: string
   tweet_text: string
+  already_in_db: boolean
 }
 
 export default function CompetitorClient({ kols }: Props) {
@@ -44,6 +52,7 @@ export default function CompetitorClient({ kols }: Props) {
   const [newName, setNewName] = useState('')
   const [newHandle, setNewHandle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/competitors').then((r) => r.json()).then((d) => {
@@ -136,9 +145,40 @@ export default function CompetitorClient({ kols }: Props) {
     }
 
     setScanning(null)
-    if (allAffiliated.length > 0) {
-      window.location.reload()
-    }
+  }
+
+  async function importKol(r: ScanResult, competitorName: string) {
+    setImporting((prev) => new Set([...prev, r.x_handle]))
+    await fetch('/api/kols/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kols: [{
+          x_handle: r.x_handle,
+          display_name: r.display_name,
+          avatar_url: r.avatar_url,
+          bio: r.bio,
+          followers_count: r.followers_count,
+          following_count: r.following_count,
+          posts_count: r.posts_count,
+          language: r.language,
+          status_flag: 'none',
+          status: 'pending',
+          competitor_affiliations: [competitorName],
+        }],
+      }),
+    })
+    // Mark as already in db in scan results
+    setScanResults((prev) => {
+      const next = new Map(prev)
+      for (const [key, results] of next) {
+        next.set(key, results.map((item) =>
+          item.x_handle === r.x_handle ? { ...item, already_in_db: true } : item
+        ))
+      }
+      return next
+    })
+    setImporting((prev) => { const n = new Set(prev); n.delete(r.x_handle); return n })
   }
 
   return (
@@ -217,16 +257,10 @@ export default function CompetitorClient({ kols }: Props) {
                 </button>
               </div>
 
-              {/* Recent scan results */}
+              {/* Scan result count */}
               {results.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, marginBottom: 4 }}>发现 {results.length} 个关联 KOL：</div>
-                  {results.map((r) => (
-                    <div key={r.kol_id} style={{ padding: '4px 8px', background: '#f0fdf4', borderRadius: 4, fontSize: 11, marginBottom: 3 }}>
-                      <span style={{ fontWeight: 500 }}>@{r.x_handle}</span>
-                      <span style={{ color: '#64748b', marginLeft: 6 }}>{r.reason}</span>
-                    </div>
-                  ))}
+                <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, marginBottom: 4 }}>
+                  发现 {results.length} 个关联 KOL ↓
                 </div>
               )}
 
@@ -251,6 +285,65 @@ export default function CompetitorClient({ kols }: Props) {
           )
         })}
       </div>
+
+      {/* Scan results as KOL cards */}
+      {[...scanResults.entries()].map(([compName, results]) => {
+        if (results.length === 0) return null
+        const comp = competitors.find((c) => c.name === compName)
+        return (
+          <div key={compName}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
+              <span style={{ color: comp?.color ?? '#6366f1' }}>●</span> {compName} 关联 KOL（{results.length}）
+            </h2>
+            <div className="discover-grid" style={{ marginBottom: 20 }}>
+              {results.map((r) => (
+                <div key={r.x_handle} className="discover-card" style={{ opacity: r.already_in_db ? 0.7 : 1 }}>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                    {r.avatar_url
+                      ? <img src={r.avatar_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      : <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#94a3b8', flexShrink: 0 }}>{r.display_name?.[0]?.toUpperCase()}</div>
+                    }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 14 }}>{r.display_name}</span>
+                        <span className={`badge tier-${r.tier}`} style={{ fontSize: 10 }}>{r.tier}</span>
+                        <span className="badge" style={{ background: `${comp?.color ?? '#6366f1'}20`, color: comp?.color ?? '#6366f1', border: `1px solid ${comp?.color ?? '#6366f1'}40`, fontSize: 9 }}>
+                          {compName}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 8 }}>
+                        <span>@{r.x_handle}</span>
+                        <a href={`https://x.com/${r.x_handle}`} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontSize: 11 }}>X ↗</a>
+                      </div>
+                    </div>
+                  </div>
+                  {r.bio && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{r.bio}</div>}
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12 }}>
+                    <span><span style={{ color: '#94a3b8' }}>粉丝 </span><span style={{ fontWeight: 600 }}>{formatNumber(r.followers_count)}</span></span>
+                    <span><span style={{ color: '#94a3b8' }}>推文 </span><span style={{ fontWeight: 600 }}>{formatNumber(r.posts_count)}</span></span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', background: '#f8fafc', padding: '6px 8px', borderRadius: 6, marginBottom: 10 }}>
+                    <span style={{ color: '#16a34a', fontWeight: 500 }}>{r.reason}</span>
+                    <div style={{ marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.tweet_text}</div>
+                  </div>
+                  {r.already_in_db ? (
+                    <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', padding: '4px 0' }}>已在名录中</div>
+                  ) : (
+                    <button
+                      className="btn btn-primary"
+                      style={{ width: '100%', fontSize: 12, padding: '5px 0' }}
+                      disabled={importing.has(r.x_handle)}
+                      onClick={() => importKol(r, compName)}
+                    >
+                      {importing.has(r.x_handle) ? '导入中...' : `导入名录（带 ${compName} 标签）`}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
 
       {/* KOL affiliations table */}
       <div>

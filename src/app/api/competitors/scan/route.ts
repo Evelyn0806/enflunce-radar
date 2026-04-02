@@ -39,9 +39,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '请提供竞品名称和 handle' }, { status: 400 })
   }
 
+  // Get existing KOL handles for dedup detection
+  const { data: existingKols } = await supabase
+    .from('kols')
+    .select('x_handle')
+    .not('x_handle', 'like', '__competitor__%')
+  const existingHandles = new Set((existingKols ?? []).map((k) => k.x_handle))
+
   const { data: kols } = await supabase
     .from('kols')
-    .select('id, x_handle, display_name, followers_count')
+    .select('id, x_handle, display_name, avatar_url, bio, followers_count, following_count, posts_count, tier, language')
     .not('x_handle', 'like', '__competitor__%')
     .order('followers_count', { ascending: false })
     .range(offset, offset + BATCH_SIZE - 1)
@@ -50,7 +57,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ scanned: 0, affiliated: [], done: true })
   }
 
-  const affiliated: { kol_id: string; x_handle: string; display_name: string | null; reason: string; tweet_text: string }[] = []
+  const affiliated: {
+    kol_id: string
+    x_handle: string
+    display_name: string | null
+    avatar_url: string | null
+    bio: string | null
+    followers_count: number
+    following_count: number
+    posts_count: number
+    tier: string
+    language: string
+    reason: string
+    tweet_text: string
+    already_in_db: boolean
+  }[] = []
   let scanned = 0
 
   for (const kol of kols) {
@@ -68,8 +89,16 @@ export async function POST(req: NextRequest) {
             kol_id: kol.id,
             x_handle: kol.x_handle,
             display_name: kol.display_name,
+            avatar_url: kol.avatar_url,
+            bio: kol.bio,
+            followers_count: kol.followers_count,
+            following_count: kol.following_count ?? 0,
+            posts_count: kol.posts_count ?? 0,
+            tier: kol.tier,
+            language: kol.language ?? 'en',
             reason: check.reason,
             tweet_text: tweet.text.substring(0, 200),
+            already_in_db: existingHandles.has(kol.x_handle),
           })
 
           const { data: currentKol } = await supabase
