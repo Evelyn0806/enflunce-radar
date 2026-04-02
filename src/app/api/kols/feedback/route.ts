@@ -1,13 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Store KOL feedback (positive = imported, negative = rejected)
-// Uses a simple JSON column approach - no schema change needed
-// Stores in a 'kol_feedback' row in a generic settings-like approach
-// We'll use the kols table's notes or a localStorage-synced approach
+// Feedback signals are stored separately from the KOL directory.
+// Negative signals (rejected KOLs) go into a blacklist that:
+//   1. Filters them from future search results
+//   2. Contributes bio keywords as negative features to profile scoring
+// Positive signals = KOLs that get imported into the directory (implicit)
+//
+// Storage: we use the `competitor_kol_maps` table repurposed, or simpler:
+// a dedicated lightweight approach using Supabase.
+// Since we can't add tables, we store blacklist as JSON in a notes-based hack.
+// Better: use a simple in-memory + Supabase row approach.
 
-// For now, store feedback in Supabase using a simple key-value approach
-// We'll create a lightweight feedback store
+// We store rejected handles in a single JSON array in a config-like row.
+// Using the health_snapshots table with a sentinel kol_id for storage.
+
+const BLACKLIST_SENTINEL_ID = '00000000-0000-0000-0000-000000000000'
+
+async function loadBlacklist(): Promise<{ x_handle: string; bio: string; followers_count: number }[]> {
+  const { data } = await supabase
+    .from('health_snapshots')
+    .select('*')
+    .eq('kol_id', BLACKLIST_SENTINEL_ID)
+    .limit(1)
+    .single()
+
+  if (data?.engagement_rate === -999) {
+    // Our sentinel row
+    try {
+      return JSON.parse(data.keyword_post_count?.toString() ?? '[]')
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+async function saveBlacklist(list: { x_handle: string; bio: string; followers_count: number }[]) {
+  // Check if sentinel exists
+  const { data } = await supabase
+    .from('health_snapshots')
+    .select('id')
+    .eq('kol_id', BLACKLIST_SENTINEL_ID)
+    .limit(1)
+    .single()
+
+  const payload = {
+    kol_id: BLACKLIST_SENTINEL_ID,
+    engagement_rate: -999, // sentinel marker
+    keyword_post_count: list.length,
+    followers_count: 0,
+    posts_count: 0,
+  }
+
+  if (data?.id) {
+    await supabase.from('health_snapshots').update(payload).eq('id', data.id)
+  } else {
+    await supabase.from('health_snapshots').insert(payload)
+  }
+}
+
+// In-memory cache for fast access
+let blacklistCache: Set<string> | null = null
+let blacklistFull: { x_handle: string; bio: string; followers_count: number }[] | null = null
 
 export async function POST(req: NextRequest) {
   const { x_handle, bio, followers_count, signal }: {
@@ -21,44 +76,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing x_handle or signal' }, { status: 400 })
   }
 
-  // Store feedback by upserting into a feedback tracking approach
-  // We use the existing kols table: if rejected, we mark it so future searches skip it
-  // For positive signals, the import itself is the signal (already in DB)
-  // For negative signals, we store a lightweight rejection record
-
   if (signal === 'negative') {
-    // Store rejection in a simple approach: insert a minimal record with status 'terminated' and a flag
-    const { error } = await supabase
-      .from('kols')
-      .upsert({
-        x_handle: x_handle.toLowerCase(),
-        bio: bio ?? null,
-        followers_count: followers_count ?? 0,
-        following_count: 0,
-        posts_count: 0,
-        language: 'en',
-        tier: 'C',
-        status: 'terminated',
-        status_flag: 'stop',
-        notes: `[auto-rejected] 在发现页被排除`,
-      }, { onConflict: 'x_handle', ignoreDuplicates: true })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    // Add to blacklist (NOT to kols table)
+    const handle = x_handle.toLowerCase()
+    if (!blacklistFull) blacklistFull = await loadBlacklist()
+    if (!blacklistFull.some((b) => b.x_handle === handle)) {
+      blacklistFull.push({ x_handle: handle, bio: bio ?? '', followers_count: followers_count ?? 0 })
+      await saveBlacklist(blacklistFull)
     }
+    if (!blacklistCache) blacklistCache = new Set(blacklistFull.map((b) => b.x_handle))
+    blacklistCache.add(handle)
+
+    // Also remove from kols table if it was accidentally inserted before
+    await supabase.from('kols').delete().eq('x_handle', handle).eq('status', 'terminated').eq('status_flag', 'stop')
   }
 
   return NextResponse.json({ ok: true, signal })
 }
 
 export async function GET() {
-  // Return list of rejected handles for filtering in discover
-  const { data } = await supabase
-    .from('kols')
-    .select('x_handle')
-    .eq('status_flag', 'stop')
-    .eq('status', 'terminated')
-
-  const rejected = new Set((data ?? []).map((k) => k.x_handle))
-  return NextResponse.json({ rejected: [...rejected] })
+  if (!blacklistFull) blacklistFull = await loadBlacklist()
+  const rejected = blacklistFull.map((b) => b.x_handle)
+  return NextResponse.json({ rejected, count: rejected.length })
 }

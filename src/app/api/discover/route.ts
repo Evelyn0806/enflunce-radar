@@ -411,12 +411,16 @@ function scoreKolProfile(item: DiscoveryResult, stats: ProfileStats): number {
 }
 
 async function loadRejectedHandles(): Promise<Set<string>> {
-  const { data } = await supabase
-    .from('kols')
-    .select('x_handle')
-    .eq('status_flag', 'stop')
-    .eq('status', 'terminated')
-  return new Set((data ?? []).map((k) => k.x_handle))
+  // Load from feedback blacklist API (same server, direct fetch)
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.VERCEL_URL
+    const origin = baseUrl ? (baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`) : 'http://localhost:3000'
+    const res = await fetch(`${origin}/api/kols/feedback`, { cache: 'no-store' })
+    const data = await res.json()
+    return new Set(data.rejected ?? [])
+  } catch {
+    return new Set()
+  }
 }
 
 async function annotateExistingKols(results: DiscoveryResult[]) {
