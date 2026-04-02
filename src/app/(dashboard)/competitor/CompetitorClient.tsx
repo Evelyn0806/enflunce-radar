@@ -38,6 +38,7 @@ interface ScanResult {
   reason: string
   tweet_text: string
   already_in_db: boolean
+  tagged?: boolean
 }
 
 export default function CompetitorClient({ kols }: Props) {
@@ -164,6 +165,20 @@ export default function CompetitorClient({ kols }: Props) {
     setScanning(null)
   }
 
+  function markHandleDone(handle: string) {
+    const updater = (prev: Map<string, ScanResult[]>) => {
+      const next = new Map(prev)
+      for (const [key, results] of next) {
+        next.set(key, results.map((item) =>
+          item.x_handle === handle ? { ...item, already_in_db: true, tagged: true } : item
+        ))
+      }
+      return next
+    }
+    setScanResults(updater)
+    setDiscoverResults(updater)
+  }
+
   async function importKol(r: ScanResult, competitorName: string) {
     setImporting((prev) => new Set([...prev, r.x_handle]))
     await fetch('/api/kols/import', {
@@ -185,16 +200,29 @@ export default function CompetitorClient({ kols }: Props) {
         }],
       }),
     })
-    // Mark as already in db in scan results
-    setScanResults((prev) => {
-      const next = new Map(prev)
-      for (const [key, results] of next) {
-        next.set(key, results.map((item) =>
-          item.x_handle === r.x_handle ? { ...item, already_in_db: true } : item
-        ))
+    markHandleDone(r.x_handle)
+    setImporting((prev) => { const n = new Set(prev); n.delete(r.x_handle); return n })
+  }
+
+  async function addCompetitorTag(r: ScanResult, competitorName: string) {
+    setImporting((prev) => new Set([...prev, r.x_handle]))
+    // Fetch current affiliations and append
+    const res = await fetch(`/api/kols?x_handle=${r.x_handle}`)
+    if (res.ok) {
+      const kols = await res.json()
+      const kol = Array.isArray(kols) ? kols.find((k: { x_handle: string }) => k.x_handle === r.x_handle) : null
+      if (kol) {
+        const current: string[] = kol.competitor_affiliations ?? []
+        if (!current.includes(competitorName)) {
+          await fetch(`/api/kols/${kol.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ competitor_affiliations: [...current, competitorName] }),
+          })
+        }
       }
-      return next
-    })
+    }
+    markHandleDone(r.x_handle)
     setImporting((prev) => { const n = new Set(prev); n.delete(r.x_handle); return n })
   }
 
@@ -359,8 +387,17 @@ export default function CompetitorClient({ kols }: Props) {
                     <span style={{ color: '#16a34a', fontWeight: 500 }}>{r.reason}</span>
                     <div style={{ marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.tweet_text}</div>
                   </div>
-                  {r.already_in_db ? (
-                    <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', padding: '4px 0' }}>已在名录中</div>
+                  {r.tagged ? (
+                    <div style={{ fontSize: 11, color: '#16a34a', textAlign: 'center', padding: '4px 0' }}>✓ 已标记 {compName}</div>
+                  ) : r.already_in_db ? (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ width: '100%', fontSize: 12, padding: '5px 0' }}
+                      disabled={importing.has(r.x_handle)}
+                      onClick={() => addCompetitorTag(r, compName)}
+                    >
+                      {importing.has(r.x_handle) ? '标记中...' : `已入库 · 添加 ${compName} 标签`}
+                    </button>
                   ) : (
                     <button
                       className="btn btn-primary"
