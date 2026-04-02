@@ -110,20 +110,35 @@ export default function CompetitorClient({ kols }: Props) {
 
   async function scanKolAffiliations(name: string, handle: string) {
     setScanning(`${name}-kol`)
-    try {
-      const res = await fetch('/api/competitors/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ competitor_name: name, competitor_handle: handle }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setScanResults((prev) => new Map(prev).set(name, data.affiliated ?? []))
-        // Refresh page to update kol affiliations
-        window.location.reload()
+    const allAffiliated: ScanResult[] = []
+    let offset = 0
+    let done = false
+
+    while (!done) {
+      try {
+        const res = await fetch('/api/competitors/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ competitor_name: name, competitor_handle: handle, offset }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          allAffiliated.push(...(data.affiliated ?? []))
+          setScanResults((prev) => new Map(prev).set(name, [...allAffiliated]))
+          done = data.done
+          offset = data.next_offset ?? offset + 5
+        } else {
+          done = true
+        }
+      } catch {
+        done = true
       }
-    } catch { /* ignore */ }
+    }
+
     setScanning(null)
+    if (allAffiliated.length > 0) {
+      window.location.reload()
+    }
   }
 
   return (

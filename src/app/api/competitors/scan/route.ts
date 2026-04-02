@@ -2,18 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getTwikitUser, getTwikitUserTweets } from '@/lib/twikit'
 
-const DELAY_MS = 1500
+// Vercel serverless has 10s timeout. We scan a small batch per call.
+// Frontend can call multiple times to scan more KOLs.
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const BATCH_SIZE = 5
 
-// Detect if a tweet is a paid partnership or mentions the competitor handle
 function isAffiliated(tweetText: string, competitorHandle: string): { affiliated: boolean; reason: string } {
   const lower = tweetText.toLowerCase()
   const handleLower = competitorHandle.toLowerCase()
 
-  // Check for "Paid partnership" / "paid promo" / "ad" / "sponsored" labels
   const paidPatterns = ['paid partnership', 'paid promo', '#ad ', '#sponsored', 'sponsored by', 'in partnership with', 'promoted by']
   for (const p of paidPatterns) {
     if (lower.includes(p) && lower.includes(handleLower)) {
@@ -21,31 +18,38 @@ function isAffiliated(tweetText: string, competitorHandle: string): { affiliated
     }
   }
 
-  // Check for @mention of competitor handle in tweet
-  const mentionPattern = new RegExp(`@${handleLower}\\b`, 'i')
-  if (mentionPattern.test(tweetText)) {
+  if (new RegExp(`@${handleLower}\\b`, 'i').test(tweetText)) {
     return { affiliated: true, reason: `提及 @${competitorHandle}` }
+  }
+
+  // Also check if tweet mentions competitor name (not just handle)
+  if (lower.includes(handleLower)) {
+    return { affiliated: true, reason: `提及 ${competitorHandle}` }
   }
 
   return { affiliated: false, reason: '' }
 }
 
 export async function POST(req: NextRequest) {
-  const { competitor_name, competitor_handle }: { competitor_name: string; competitor_handle: string } = await req.json()
+  const { competitor_name, competitor_handle, offset = 0 }: {
+    competitor_name: string
+    competitor_handle: string
+    offset?: number
+  } = await req.json()
 
   if (!competitor_name || !competitor_handle) {
     return NextResponse.json({ error: '请提供竞品名称和 handle' }, { status: 400 })
   }
 
-  // Get all KOLs from directory
   const { data: kols } = await supabase
     .from('kols')
     .select('id, x_handle, display_name, followers_count')
+    .not('x_handle', 'like', '__competitor__%')
     .order('followers_count', { ascending: false })
-    .limit(50) // Scan top 50 by followers
+    .range(offset, offset + BATCH_SIZE - 1)
 
   if (!kols || kols.length === 0) {
-    return NextResponse.json({ scanned: 0, affiliated: [] })
+    return NextResponse.json({ scanned: 0, affiliated: [], done: true })
   }
 
   const affiliated: { kol_id: string; x_handle: string; display_name: string | null; reason: string; tweet_text: string }[] = []
@@ -53,13 +57,10 @@ export async function POST(req: NextRequest) {
 
   for (const kol of kols) {
     try {
-      // Get twitter user id
       const user = await getTwikitUser(kol.x_handle)
       if (!user?.id) continue
-      await delay(DELAY_MS)
 
-      // Get recent tweets
-      const tweets = await getTwikitUserTweets(user.id, 15)
+      const tweets = await getTwikitUserTweets(user.id, 10)
       scanned++
 
       for (const tweet of tweets) {
@@ -73,7 +74,6 @@ export async function POST(req: NextRequest) {
             tweet_text: tweet.text.substring(0, 200),
           })
 
-          // Update kols.competitor_affiliations
           const { data: currentKol } = await supabase
             .from('kols')
             .select('competitor_affiliations')
@@ -86,21 +86,20 @@ export async function POST(req: NextRequest) {
               competitor_affiliations: [...current, competitor_name],
             }).eq('id', kol.id)
           }
-
-          break // One affiliated tweet per KOL is enough
+          break
         }
       }
-
-      await delay(DELAY_MS)
     } catch {
-      // Skip KOL on error
+      // Skip on error
     }
   }
 
   return NextResponse.json({
     scanned,
-    total_kols: kols.length,
     affiliated,
     affiliated_count: affiliated.length,
+    offset,
+    next_offset: offset + BATCH_SIZE,
+    done: kols.length < BATCH_SIZE,
   })
 }
