@@ -1,13 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Kol } from '@/types'
 import { formatNumber } from '@/lib/utils'
-import Link from 'next/link'
-
-interface Props {
-  kols: Pick<Kol, 'id' | 'x_handle' | 'display_name' | 'avatar_url' | 'followers_count' | 'competitor_affiliations'>[]
-}
 
 interface Competitor {
   name: string
@@ -41,9 +35,8 @@ interface ScanResult {
   tagged?: boolean
 }
 
-export default function CompetitorClient({ kols }: Props) {
+export default function CompetitorClient() {
   const [competitors, setCompetitors] = useState<Competitor[]>([])
-  const [filter, setFilter] = useState<string>('')
   const [scanning, setScanning] = useState<string | null>(null)
   const [tweets, setTweets] = useState<Map<string, CompetitorTweet[]>>(new Map())
   const [scanResults, setScanResults] = useState<Map<string, ScanResult[]>>(new Map())
@@ -61,10 +54,6 @@ export default function CompetitorClient({ kols }: Props) {
       setCompetitors(d.competitors ?? [])
     }).catch(() => {})
   }, [])
-
-  const filtered = filter
-    ? kols.filter((k) => k.competitor_affiliations?.includes(filter))
-    : kols
 
   async function addCompetitor(e: React.FormEvent) {
     e.preventDefault()
@@ -267,7 +256,8 @@ export default function CompetitorClient({ kols }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {competitors.map((c) => {
           const competitorTweets = tweets.get(c.name) ?? []
-          const kolCount = kols.filter((k) => k.competitor_affiliations?.includes(c.name)).length
+          const discoverCount = (discoverResults.get(c.name) ?? []).length
+          const kolCount = discoverCount
           const results = scanResults.get(c.name) ?? []
           const isScanningTweets = scanning === c.name
           const isScanningKols = scanning === `${c.name}-kol`
@@ -415,80 +405,6 @@ export default function CompetitorClient({ kols }: Props) {
         )
       })}
 
-      {/* KOL affiliations table */}
-      <div>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>KOL 竞品关联</h2>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button
-            className={`btn ${filter === '' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: 12, padding: '5px 12px' }}
-            onClick={() => setFilter('')}
-          >
-            全部 ({kols.length})
-          </button>
-          {competitors.map((c) => {
-            const count = kols.filter((k) => k.competitor_affiliations?.includes(c.name)).length
-            return (
-              <button
-                key={c.name}
-                className={`btn ${filter === c.name ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ fontSize: 12, padding: '5px 12px' }}
-                onClick={() => setFilter(c.name)}
-              >
-                {c.name} ({count})
-              </button>
-            )
-          })}
-        </div>
-
-        {filtered.length > 0 ? (
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>KOL</th>
-                  <th>粉丝数</th>
-                  <th>竞品关联</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((k) => (
-                  <tr key={k.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {k.avatar_url && <img src={k.avatar_url} alt="" className="avatar" />}
-                        <div>
-                          <Link href={`/kols/${k.id}`} style={{ fontWeight: 500, fontSize: 13, color: '#0f172a', textDecoration: 'none' }}>{k.display_name}</Link>
-                          <div style={{ fontSize: 11, color: '#94a3b8' }}>@{k.x_handle}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 13 }}>{formatNumber(k.followers_count)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {k.competitor_affiliations?.map((comp) => {
-                          const cfg = competitors.find((c) => c.name === comp)
-                          return (
-                            <span key={comp} className="badge" style={{ background: `${cfg?.color ?? '#94a3b8'}15`, color: cfg?.color ?? '#94a3b8', border: `1px solid ${cfg?.color ?? '#e2e8f0'}30` }}>
-                              {comp}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
-            <div>暂无竞品关联 KOL</div>
-            <div style={{ fontSize: 12, marginTop: 6 }}>点击竞品卡片上的「扫描关联 KOL」自动检测</div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
