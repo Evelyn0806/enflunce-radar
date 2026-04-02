@@ -1,52 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Competitors are stored in a simple table-like approach using kols table notes
-// For lightweight storage without schema change, we use a JSON config row
-// Better approach: use Supabase 'competitor_list' in a settings-like table
-// For now: store as JSON in a simple key-value via the existing schema
+// Competitors persisted in Supabase via competitor_kol_maps table.
+// Sentinel kol_id = all zeros means "this is a competitor config row, not a KOL affiliation".
+// competitor = name, notes = X handle
 
-// We'll use localStorage on client + a simple API that stores competitors
-// as a JSON array in a single row of a generic config approach
+interface Competitor {
+  name: string
+  handle: string
+  color: string
+}
 
-// Simplest: store competitor list in memory + sync to a config endpoint
+const CONFIG_KOL_ID = '00000000-0000-0000-0000-000000000000'
+const COLORS = ['#6366f1', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6']
 
-const COMPETITOR_STORE_KEY = 'competitor_list'
-
-// In-memory store (persists across requests in same serverless instance)
-let competitorCache: { name: string; handle: string; color: string }[] | null = null
-
-async function loadCompetitors() {
-  if (competitorCache) return competitorCache
-
-  // Try loading from Supabase - using a "config" approach via competitor_kol_maps table
-  // Or just use a simple approach: check if we have a stored list
+async function loadCompetitors(): Promise<Competitor[]> {
   const { data } = await supabase
     .from('competitor_kol_maps')
-    .select('competitor')
-    .limit(100)
+    .select('competitor, notes')
+    .eq('kol_id', CONFIG_KOL_ID)
+    .order('created_at', { ascending: true })
 
-  const names = [...new Set((data ?? []).map((d) => d.competitor).filter(Boolean))]
+  if (!data || data.length === 0) return []
 
-  // Default competitors if none exist
-  if (names.length === 0) {
-    competitorCache = [
-      { name: 'Polymarket', handle: 'Polymarket', color: '#6366f1' },
-      { name: 'Kalshi', handle: 'Kalshi', color: '#dc2626' },
-      { name: 'Azuro', handle: 'AzuroProtocol', color: '#2563eb' },
-      { name: 'Limitless', handle: 'LimitlessExch', color: '#16a34a' },
-      { name: 'Drift', handle: 'DriftProtocol', color: '#f59e0b' },
-    ]
-    return competitorCache
-  }
-
-  const colors = ['#6366f1', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6']
-  competitorCache = names.map((name, i) => ({
-    name,
-    handle: name,
-    color: colors[i % colors.length],
+  return data.map((row, i) => ({
+    name: row.competitor,
+    handle: row.notes ?? row.competitor,
+    color: COLORS[i % COLORS.length],
   }))
-  return competitorCache
 }
 
 export async function GET() {
@@ -61,22 +42,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '请提供竞品名称和 X handle' }, { status: 400 })
   }
 
+  const cleanName = name.trim()
   const cleanHandle = handle.replace(/^@/, '').trim()
-  const colors = ['#6366f1', '#dc2626', '#2563eb', '#16a34a', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6']
 
-  // Add to cache
+  // Check duplicate
   const current = await loadCompetitors()
-  if (current.some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) {
+  if (current.some((c) => c.name.toLowerCase() === cleanName.toLowerCase())) {
     return NextResponse.json({ error: '该竞品已存在' }, { status: 409 })
   }
 
-  const newCompetitor = {
-    name: name.trim(),
-    handle: cleanHandle,
-    color: colors[current.length % colors.length],
+  // Insert config row
+  const { error } = await supabase.from('competitor_kol_maps').insert({
+    kol_id: CONFIG_KOL_ID,
+    competitor: cleanName,
+    notes: cleanHandle,
+    detected_at: new Date().toISOString(),
+  })
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  competitorCache = [...current, newCompetitor]
+  const newCompetitor: Competitor = {
+    name: cleanName,
+    handle: cleanHandle,
+    color: COLORS[current.length % COLORS.length],
+  }
 
   return NextResponse.json(newCompetitor, { status: 201 })
 }
@@ -85,13 +76,18 @@ export async function DELETE(req: NextRequest) {
   const { name }: { name: string } = await req.json()
   if (!name) return NextResponse.json({ error: 'Missing name' }, { status: 400 })
 
-  const current = await loadCompetitors()
-  competitorCache = current.filter((c) => c.name !== name)
-
-  // Also remove affiliations
+  // Delete config row
   await supabase
     .from('competitor_kol_maps')
     .delete()
+    .eq('kol_id', CONFIG_KOL_ID)
+    .eq('competitor', name)
+
+  // Also delete all KOL affiliation rows for this competitor
+  await supabase
+    .from('competitor_kol_maps')
+    .delete()
+    .neq('kol_id', CONFIG_KOL_ID)
     .eq('competitor', name)
 
   return NextResponse.json({ ok: true })
