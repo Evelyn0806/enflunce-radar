@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import CompetitorClient from './CompetitorClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CompetitorPage() {
   const { data: kols } = await supabase
     .from('kols')
