@@ -45,3 +45,6 @@ __pycache__/
 .twikit.cookies.json
 *.pyc
 .claude/
+twikit.py
+twikit_bridge.py
+scripts/twikit_bridge.py
