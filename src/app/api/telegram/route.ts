@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { formatNumber } from '@/lib/utils'
+import { getTwikitUser, getTwikitUserTweets, TwikitTweet } from '@/lib/twikit'
 import Anthropic from '@anthropic-ai/sdk'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
@@ -27,6 +28,47 @@ async function sendMessage(chatId: string, text: string) {
 // ============================================================
 // AI Chat - same brain as /chat page
 // ============================================================
+function wantsTrends(msg: string): boolean {
+  const lower = msg.toLowerCase()
+  const keywords = ['热点', '趋势', '最近', '过去', '小时', 'trend', 'hot', 'recent', 'latest', '动态', '在聊什么', '在讨论', '推文', 'tweet', '发了什么', '说了什么']
+  return keywords.some((k) => lower.includes(k))
+}
+
+async function fetchRecentTrends(limit = 8): Promise<string> {
+  const { data: kols } = await supabase
+    .from('kols')
+    .select('x_handle, display_name, tier')
+    .not('x_handle', 'like', '__competitor__%')
+    .order('followers_count', { ascending: false })
+    .limit(limit)
+
+  if (!kols || kols.length === 0) return ''
+
+  const allTweets: { handle: string; tier: string; tweet: TwikitTweet }[] = []
+  for (const kol of kols) {
+    try {
+      const user = await getTwikitUser(kol.x_handle)
+      if (!user?.id) continue
+      const tweets = await getTwikitUserTweets(user.id, 3)
+      for (const t of tweets) allTweets.push({ handle: kol.x_handle, tier: kol.tier, tweet: t })
+    } catch { break } // Stop on rate limit
+    if (allTweets.length >= 20) break
+  }
+
+  if (allTweets.length === 0) return ''
+
+  allTweets.sort((a, b) => {
+    const da = a.tweet.created_at ? new Date(a.tweet.created_at).getTime() : 0
+    const db = b.tweet.created_at ? new Date(b.tweet.created_at).getTime() : 0
+    return db - da
+  })
+
+  return allTweets.slice(0, 15).map((t) => {
+    const eng = t.tweet.favorite_count + t.tweet.retweet_count + t.tweet.reply_count
+    return `@${t.handle} (Tier ${t.tier}) 互动:${eng}\n${t.tweet.text.substring(0, 120)}`
+  }).join('\n\n')
+}
+
 // Simple per-chat conversation history (in-memory, clears on cold start)
 const chatHistory = new Map<string, { role: 'user' | 'assistant'; content: string }[]>()
 
@@ -53,6 +95,8 @@ async function handleAIChat(chatId: string, userMessage: string) {
 
   const { data: statsData } = await supabase.from('kols').select('id').not('x_handle', 'like', '__competitor__%')
   const totalKols = statsData?.length ?? 0
+
+  const trendsCtx = wantsTrends(userMessage) ? await fetchRecentTrends(8) : ''
 
   const systemPrompt = `你叫 Radar，是 En·flunce Radar 平台的 AI 助手，通过 Telegram 和用户直接互动。
 
@@ -90,7 +134,9 @@ ${kolSummary}
 - **诚实**：不确定的事情直接说"我不确定"或反问用户，绝不瞎猜
 - **简洁**：Telegram 消息不宜过长，但该说的不省
 - **可操作**：需要操作时给出具体指令
-- 使用用户的语言（中文或英文）`
+- 分析热点时要总结主题、情绪、关键事件，不要只罗列推文
+- 使用用户的语言（中文或英文）
+${trendsCtx ? `\n## KOL 最近推文（实时数据）\n\n${trendsCtx}` : ''}`
 
   const client = new Anthropic({ apiKey, ...(baseURL && { baseURL }) })
 

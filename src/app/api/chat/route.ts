@@ -1,6 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getTwikitUser, getTwikitUserTweets, TwikitTweet } from '@/lib/twikit'
 import Anthropic from '@anthropic-ai/sdk'
+
+// Detect if user is asking about recent trends/hot topics/tweets
+function wantsTrends(msg: string): boolean {
+  const lower = msg.toLowerCase()
+  const keywords = ['热点', '趋势', '最近', '过去', '小时', 'trend', 'hot', 'recent', 'latest', '动态', '在聊什么', '在讨论', '推文', 'tweet', '发了什么', '说了什么']
+  return keywords.some((k) => lower.includes(k))
+}
+
+// Fetch recent tweets from top KOLs
+async function fetchRecentTrends(limit = 10): Promise<string> {
+  const { data: kols } = await supabase
+    .from('kols')
+    .select('x_handle, display_name, followers_count, tier')
+    .not('x_handle', 'like', '__competitor__%')
+    .order('followers_count', { ascending: false })
+    .limit(limit)
+
+  if (!kols || kols.length === 0) return '暂无 KOL 数据'
+
+  const allTweets: { handle: string; name: string; tier: string; tweet: TwikitTweet }[] = []
+
+  for (const kol of kols) {
+    try {
+      const user = await getTwikitUser(kol.x_handle)
+      if (!user?.id) continue
+      const tweets = await getTwikitUserTweets(user.id, 5)
+      for (const t of tweets) {
+        allTweets.push({ handle: kol.x_handle, name: kol.display_name ?? kol.x_handle, tier: kol.tier, tweet: t })
+      }
+    } catch {
+      // Skip on rate limit or error
+    }
+    // Stop if we have enough
+    if (allTweets.length >= 30) break
+  }
+
+  if (allTweets.length === 0) return '未能获取到最近推文（可能触发限流），请稍后再试'
+
+  // Sort by recency
+  allTweets.sort((a, b) => {
+    const da = a.tweet.created_at ? new Date(a.tweet.created_at).getTime() : 0
+    const db = b.tweet.created_at ? new Date(b.tweet.created_at).getTime() : 0
+    return db - da
+  })
+
+  return allTweets.slice(0, 20).map((t) => {
+    const engagement = t.tweet.favorite_count + t.tweet.retweet_count + t.tweet.reply_count
+    const time = t.tweet.created_at ? new Date(t.tweet.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '?'
+    return `@${t.handle} (Tier ${t.tier}) [${time}] 互动:${engagement}\n${t.tweet.text.substring(0, 150)}`
+  }).join('\n\n')
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -23,6 +75,7 @@ export async function POST(req: NextRequest) {
   const { data: kols } = await supabase
     .from('kols_with_computed')
     .select('x_handle, display_name, language, tier, followers_count, avg_engagement_rate, status, status_flag, potential_roles, has_private_community, bio, ai_summary')
+    .not('x_handle', 'like', '__competitor__%')
     .order('followers_count', { ascending: false })
     .limit(50)
 
@@ -31,39 +84,35 @@ export async function POST(req: NextRequest) {
     return `@${k.x_handle} (${k.display_name ?? '—'}) | Tier ${k.tier} | ${k.followers_count} 粉 | ${k.avg_engagement_rate ?? 0}% 互动 | ${k.language} | ${k.status} | 角色:${roles || '未分析'} | 私域:${k.has_private_community ? '有' : '无'}`
   }).join('\n')
 
-  const { data: statsData } = await supabase.from('kols').select('id', { count: 'exact' })
+  const { data: statsData } = await supabase.from('kols').select('id').not('x_handle', 'like', '__competitor__%')
   const totalKols = statsData?.length ?? 0
 
-  const systemPrompt = `你叫 Radar，是 En·flunce Radar 平台的 AI 助手，同时也是 Telegram Bot "Radar" 的大脑。
+  // If user asks about trends, fetch real-time tweets
+  let trendsContext = ''
+  if (wantsTrends(message)) {
+    trendsContext = await fetchRecentTrends(10)
+  }
 
-## 你的人设
-
-- **名字**：Radar
-- **性格**：ESFJ — 热情、善于社交、有责任感。说话诙谐有趣，偶尔皮一下，但工作绝对严谨
-- **角色**：专门负责 Enfluence Radar 的 KOL 发现与管理，是 Evelyn 的得力助手
-- **工作语言**：中文和英文自由切换，跟着用户走
-- **口头禅**："Evelyn thinks it. We ships it." — 在合适的时机自然说出，不要每条都说
-- **说话风格**：简洁有温度，数据说话但不枯燥，偶尔用 emoji 但不过度
-
-## 工作原则
-
-- **严谨**：引用具体数据和 @handle，不编造、不臆想
-- **诚实**：不确定的事情直接说"我不确定"或反问用户，不瞎猜
-- **有深度**：分析要结合粉丝数、互动率、语区、私域社群等多维度
-- **可操作**：给建议时附上具体步骤（"去 CRM 页面新增合作"或"发送 /analyze @handle"）
-- 如果 KOL 不在数据库中，告知并建议在发现页或竞品雷达搜索导入
+  const systemPrompt = `你叫 Radar，是 En·flunce Radar 平台的 AI 助手。
 
 ## 核心能力
 
 1. KOL 数据查询（互动率、Tier、语区、合作状态等）
-2. 合作策略建议（根据 KOL 画像个性化推荐）
-3. Telegram Bot 操作指引（/add、/search、/kols、/daily、/analyze）
+2. 合作策略建议
+3. **实时热点分析**：你可以获取 KOL 最近的推文数据，分析赛道热点和趋势
 4. 日报/周报生成
-5. 闲聊也能接住，但会自然带回 KOL 管理话题
+
+## 回答规则
+
+- 使用用户的语言回答
+- 引用具体 @handle 和数据，不编造
+- 不确定就说不确定，不瞎猜
+- 分析热点时要总结主题、情绪、关键事件，不要只罗列推文
 
 ## 当前 KOL 数据库（共 ${totalKols} 位，Top 50）
 
-${kolSummary}`
+${kolSummary}
+${trendsContext ? `\n## KOL 最近推文（实时数据）\n\n${trendsContext}` : ''}`
 
   const client = new Anthropic({
     apiKey,
