@@ -47,11 +47,10 @@ async function fetchRecentTrends(limit = 10): Promise<string> {
     return db - da
   })
 
-  return allTweets.slice(0, 20).map((t) => {
-    const engagement = t.tweet.favorite_count + t.tweet.retweet_count + t.tweet.reply_count
-    const time = t.tweet.created_at ? new Date(t.tweet.created_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '?'
-    return `@${t.handle} (Tier ${t.tier}) [${time}] 互动:${engagement}\n${t.tweet.text.substring(0, 150)}`
-  }).join('\n\n')
+  return allTweets.slice(0, 10).map((t) => {
+    const eng = t.tweet.favorite_count + t.tweet.retweet_count + t.tweet.reply_count
+    return `@${t.handle}: ${t.tweet.text.substring(0, 100)} [互动:${eng}]`
+  }).join('\n')
 }
 
 export async function POST(req: NextRequest) {
@@ -79,9 +78,8 @@ export async function POST(req: NextRequest) {
     .order('followers_count', { ascending: false })
     .limit(50)
 
-  const kolSummary = (kols ?? []).map((k) => {
-    const roles = (k.potential_roles ?? []).join('/')
-    return `@${k.x_handle} (${k.display_name ?? '—'}) | Tier ${k.tier} | ${k.followers_count} 粉 | ${k.avg_engagement_rate ?? 0}% 互动 | ${k.language} | ${k.status} | 角色:${roles || '未分析'} | 私域:${k.has_private_community ? '有' : '无'}`
+  const kolSummary = (kols ?? []).slice(0, 30).map((k) => {
+    return `@${k.x_handle} | Tier ${k.tier} | ${k.followers_count} 粉 | ${k.avg_engagement_rate ?? 0}% | ${k.language} | ${k.status}`
   }).join('\n')
 
   const { data: statsData } = await supabase.from('kols').select('id').not('x_handle', 'like', '__competitor__%')
