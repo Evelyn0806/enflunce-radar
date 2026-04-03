@@ -149,7 +149,7 @@ ${trendsCtx ? `\n## KOL 最近推文（实时数据）\n\n${trendsCtx}` : ''}`
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-opus-4-6',
       max_tokens: 1024,
       messages: [contextMessage, contextReply, ...history.slice(-10)],
     })
