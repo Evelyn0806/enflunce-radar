@@ -122,12 +122,15 @@ ${trendsContext ? `\n## KOL 最近推文（实时数据）\n\n${trendsContext}` 
     { role: 'user', content: message },
   ]
 
+  // Prepend context as first user message to avoid system prompt issues with some API proxies
+  const contextMessage = { role: 'user' as const, content: `[Context for this conversation - do not repeat this back]\n${systemPrompt}\n\nNow respond to the conversation below.` }
+  const contextReply = { role: 'assistant' as const, content: 'Understood. I will use this context to answer questions.' }
+
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: systemPrompt,
-      messages,
+      messages: [contextMessage, contextReply, ...messages],
     })
 
     const reply = response.content[0].type === 'text' ? response.content[0].text : ''

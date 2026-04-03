@@ -144,12 +144,14 @@ ${trendsCtx ? `\n## KOL 最近推文（实时数据）\n\n${trendsCtx}` : ''}`
   const history = chatHistory.get(chatId) ?? []
   history.push({ role: 'user', content: userMessage })
 
+  const contextMessage = { role: 'user' as const, content: `[Context]\n${systemPrompt}\n\nRespond to the conversation below.` }
+  const contextReply = { role: 'assistant' as const, content: 'OK.' }
+
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: systemPrompt,
-      messages: history.slice(-10), // Keep last 10 messages
+      messages: [contextMessage, contextReply, ...history.slice(-10)],
     })
 
     const reply = response.content[0].type === 'text' ? response.content[0].text : ''
