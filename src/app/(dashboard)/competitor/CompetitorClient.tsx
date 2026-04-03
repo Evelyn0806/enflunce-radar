@@ -154,6 +154,17 @@ export default function CompetitorClient() {
     setScanning(null)
   }
 
+  function removeCard(compName: string, handle: string) {
+    const updater = (prev: Map<string, ScanResult[]>) => {
+      const next = new Map(prev)
+      const list = next.get(compName)
+      if (list) next.set(compName, list.filter((r) => r.x_handle !== handle))
+      return next
+    }
+    setScanResults(updater)
+    setDiscoverResults(updater)
+  }
+
   function markHandleDone(handle: string) {
     const updater = (prev: Map<string, ScanResult[]>) => {
       const next = new Map(prev)
@@ -348,7 +359,18 @@ export default function CompetitorClient() {
             </h2>
             <div className="discover-grid" style={{ marginBottom: 20 }}>
               {results.map((r) => (
-                <div key={r.x_handle} className="discover-card" style={{ opacity: r.already_in_db ? 0.7 : 1 }}>
+                <div key={r.x_handle} className="discover-card" style={{ opacity: r.already_in_db ? 0.7 : 1, position: 'relative' }}>
+                  <button
+                    onClick={() => removeCard(compName, r.x_handle)}
+                    title="移除此卡片"
+                    style={{
+                      position: 'absolute', top: 8, right: 8,
+                      width: 22, height: 22, borderRadius: 6,
+                      border: '1px solid #fecaca', background: '#fef2f2',
+                      cursor: 'pointer', fontSize: 11, color: '#dc2626',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >✕</button>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
                     {r.avatar_url
                       ? <img src={r.avatar_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
