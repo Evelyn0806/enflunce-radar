@@ -38,7 +38,7 @@ export default function DiscoverClient() {
   const router = useRouter()
   const [keywords, setKeywords] = useState<string[]>([])
   const [kwInput, setKwInput] = useState('')
-  const [minFollowers, setMinFollowers] = useState(5000)
+  const [minFollowers, setMinFollowers] = useState(1500)
   const [timeRange, setTimeRange] = useState(30)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -213,7 +213,7 @@ export default function DiscoverClient() {
             <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6 }}>最低粉丝数</label>
             <select className="select" value={minFollowers} onChange={(e) => setMinFollowers(Number(e.target.value))}>
               <option value={1000}>1,000+</option>
-              <option value={5000}>5,000+</option>
+              <option value={1500}>1,500+</option>
               <option value={10000}>10,000+</option>
               <option value={50000}>50,000+</option>
             </select>

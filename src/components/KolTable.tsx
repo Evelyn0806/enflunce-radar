@@ -3,17 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Kol, STATUS_CONFIG, FLAG_CONFIG, LANGUAGE_CONFIG, TIER_CONFIG } from '@/types'
-import { formatNumber, formatDate } from '@/lib/utils'
+import { Kol, STATUS_CONFIG, FLAG_CONFIG, LANGUAGE_CONFIG, TIER_CONFIG, KOL_TYPE_CONFIG, KolType } from '@/types'
+import { formatNumber } from '@/lib/utils'
 
 interface Props { kols: Kol[] }
-
-function engagementClass(rate: number | null): string {
-  if (rate == null) return ''
-  if (rate >= 3) return 'engagement-high'
-  if (rate >= 1) return 'engagement-mid'
-  return 'engagement-low'
-}
 
 function communityIcons(platforms: string[] | null, links: string[] | null) {
   if (!platforms?.length && !links?.length) return null
@@ -83,10 +76,9 @@ export default function KolTable({ kols }: Props) {
             <th>KOL / Handle</th>
             <th>语区</th>
             <th>Tier</th>
+            <th>类型</th>
             <th>粉丝数</th>
-            <th>互动率</th>
             <th>私域</th>
-            <th>最近发帖</th>
             <th>状态</th>
             <th></th>
           </tr>
@@ -139,9 +131,31 @@ export default function KolTable({ kols }: Props) {
 
                 {/* Tier */}
                 <td>
-                  <span className={`badge tier-${tier}`}>
-                    {tier}
+                  <span className={`badge tier-${tier}`} title={TIER_CONFIG[tier].label}>
+                    {tier} · {TIER_CONFIG[tier].label}
                   </span>
+                </td>
+
+                {/* Type — PM Trader / PM 撸毛 / 非专业 PM KOL / 未分类 */}
+                <td>
+                  {(() => {
+                    const kolType: KolType =
+                      kol.kol_type ??
+                      ((kol.airdrop_signal ?? 0) >= 1 ? 'pm_airdrop'
+                        : (kol.pm_brand_signal ?? 0) >= 1 ? 'pm_trader'
+                          : (kol.pm_tweet_signal ?? 0) >= 1 ? 'pm_generalist'
+                            : 'unclassified')
+                    const cfg = KOL_TYPE_CONFIG[kolType]
+                    return (
+                      <span
+                        className={`badge ${cfg.color}`}
+                        style={{ fontSize: 11, padding: '2px 6px' }}
+                        title={`bio_brand=${kol.pm_brand_signal ?? 0}, airdrop=${kol.airdrop_signal ?? 0}, tweet_pm=${kol.pm_tweet_signal ?? 0}`}
+                      >
+                        {cfg.label}
+                      </span>
+                    )
+                  })()}
                 </td>
 
                 {/* Followers */}
@@ -156,19 +170,9 @@ export default function KolTable({ kols }: Props) {
                   )}
                 </td>
 
-                {/* Engagement */}
+                {/* Community — show links or 无 */}
                 <td>
-                  {kol.avg_engagement_rate != null
-                    ? <span className={engagementClass(kol.avg_engagement_rate)}>
-                        {kol.avg_engagement_rate.toFixed(1)}%
-                      </span>
-                    : <span style={{ color: '#cbd5e1' }}>—</span>
-                  }
-                </td>
-
-                {/* Community */}
-                <td>
-                  {kol.has_private_community && icons ? (
+                  {kol.has_private_community && icons && icons.length > 0 ? (
                     <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                       {icons.map((ic) => (
                         ic.url ? (
@@ -183,13 +187,8 @@ export default function KolTable({ kols }: Props) {
                       ))}
                     </div>
                   ) : (
-                    <span style={{ color: '#e2e8f0' }}>—</span>
+                    <span style={{ color: '#94a3b8', fontSize: 12 }}>无</span>
                   )}
-                </td>
-
-                {/* Last post */}
-                <td style={{ fontSize: 12, color: '#64748b' }}>
-                  {formatDate(kol.last_post_at)}
                 </td>
 
                 {/* Status + Flag merged */}

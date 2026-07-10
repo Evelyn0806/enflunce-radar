@@ -1,13 +1,14 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { KolStatus, Language, Tier } from '@/types'
+import { KolStatus, KolType, Language, Tier } from '@/types'
 
 interface Props {
   params: {
     status?: KolStatus
     language?: Language
     tier?: Tier
+    kol_type?: KolType
     flag?: string
     q?: string
     silent?: string
@@ -73,9 +74,22 @@ export default function KolFilters({ params }: Props) {
         onChange={(e) => update('tier', e.target.value)}
       >
         <option value="">全部 Tier</option>
-        <option value="A">Tier A（≥5万粉）</option>
-        <option value="B">Tier B（1万+粉）</option>
-        <option value="C">Tier C</option>
+        <option value="A">大V（≥3万粉）</option>
+        <option value="B">KOL（5K–3万）</option>
+        <option value="C">KOC（&lt;5K）</option>
+      </select>
+
+      {/* KOL Type */}
+      <select
+        className="select"
+        value={params.kol_type ?? ''}
+        onChange={(e) => update('kol_type', e.target.value)}
+      >
+        <option value="">全部类型</option>
+        <option value="pm_trader">PM Trader</option>
+        <option value="pm_airdrop">PM 撸毛</option>
+        <option value="pm_generalist">非专业 PM KOL</option>
+        <option value="unclassified">未分类</option>
       </select>
 
       {/* Flag */}

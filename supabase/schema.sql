@@ -56,6 +56,11 @@ CREATE TABLE kols (
   -- 竞品关联
   competitor_affiliations TEXT[],
 
+  -- PM 分类信号
+  pm_brand_signal SMALLINT NOT NULL DEFAULT 0,   -- bio 里 Polymarket/Kalshi/Myriad/Predict.fun 等品牌命中数
+  airdrop_signal  SMALLINT NOT NULL DEFAULT 0,   -- bio 里空投/积分/testnet 词命中数（撸毛信号）
+  pm_tweet_signal SMALLINT NOT NULL DEFAULT 0,   -- 最近 5 条推文里 PM 品牌命中数（识别"非专业 PM KOL"）
+
   -- AI 自动摘要
   ai_summary TEXT,
   ai_summary_updated_at TIMESTAMPTZ
@@ -172,14 +177,22 @@ CREATE TRIGGER kols_updated_at
   BEFORE UPDATE ON kols
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Tier 自动计算视图
+-- Tier 自动计算视图 — 大V (A) ≥ 30K, KOL (B) 5K–30K, KOC (C) < 5K
+-- kol_type — derived category for the KOL directory UI
 CREATE VIEW kols_with_computed AS
 SELECT *,
   CASE
-    WHEN followers_count >= 50000 AND avg_engagement_rate >= 2 THEN 'A'
-    WHEN followers_count >= 10000 OR (followers_count >= 5000 AND avg_engagement_rate >= 3) THEN 'B'
+    WHEN followers_count >= 30000 THEN 'A'
+    WHEN followers_count >= 15000 AND avg_engagement_rate >= 1 THEN 'A'
+    WHEN followers_count >= 5000 OR (followers_count >= 3000 AND avg_engagement_rate >= 2) THEN 'B'
     ELSE 'C'
   END AS computed_tier,
+  CASE
+    WHEN airdrop_signal  >= 1 THEN 'pm_airdrop'
+    WHEN pm_brand_signal >= 1 THEN 'pm_trader'
+    WHEN pm_tweet_signal >= 1 THEN 'pm_generalist'
+    ELSE 'unclassified'
+  END AS kol_type,
   CASE
     WHEN xhunt_rank_zh IS NOT NULL AND xhunt_rank_zh <= 100 THEN true
     ELSE false

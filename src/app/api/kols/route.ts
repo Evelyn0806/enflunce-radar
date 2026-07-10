@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { computeTier, detectLanguage } from '@/lib/utils'
 import { getTwikitUser } from '@/lib/twikit'
 import { fetchXUserByHandle } from '@/lib/x-api-fallback'
+import { CORE_PM_TERMS, PM_AIRDROP_TERMS, countMatches } from '@/lib/discover-profile'
 import { Language } from '@/types'
 
 async function fetchXProfile(handle: string) {
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     : 'C'
 
   const resolvedLanguage = language || (xData ? detectLanguage(xData.bio, xData.display_name) : 'en')
+  const scoringText = xData ? `${xData.display_name ?? ''}\n${xData.bio ?? ''}` : ''
 
   const { data, error } = await supabase
     .from('kols')
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
       x_handle: x_handle.toLowerCase(),
       language: resolvedLanguage,
       tier,
+      pm_brand_signal: countMatches(scoringText, CORE_PM_TERMS),
+      airdrop_signal: countMatches(scoringText, PM_AIRDROP_TERMS),
       ...(xData ?? {}),
     })
     .select('id')

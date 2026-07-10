@@ -12,11 +12,13 @@ export function formatNumber(n: number): string {
   return n.toString()
 }
 
+// Tier definition — 大V (A) ≥ 30K, KOL (B) 5K–30K, KOC (C) < 5K.
+// High engagement can bump a KOL to 大V, or a KOC to KOL.
 export function computeTier(followers: number, engagementRate: number | null): Tier {
   const rate = engagementRate ?? 0
-  if (followers >= 100_000) return 'A'
-  if (followers >= 50_000 && rate >= 1) return 'A'
-  if (followers >= 10_000 || (followers >= 5_000 && rate >= 2)) return 'B'
+  if (followers >= 30_000) return 'A'
+  if (followers >= 15_000 && rate >= 1) return 'A'
+  if (followers >= 5_000 || (followers >= 3_000 && rate >= 2)) return 'B'
   return 'C'
 }
 

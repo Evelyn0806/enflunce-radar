@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { computeTier } from '@/lib/utils'
+import { CORE_PM_TERMS, PM_AIRDROP_TERMS, countMatches } from '@/lib/discover-profile'
 import { Language, StatusFlag, KolStatus } from '@/types'
 
 interface ImportPayload {
@@ -26,21 +27,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '无数据' }, { status: 400 })
   }
 
-  const rows = kols.map((k) => ({
-    x_handle: k.x_handle.toLowerCase(),
-    display_name: k.display_name,
-    avatar_url: k.avatar_url,
-    bio: k.bio,
-    followers_count: k.followers_count,
-    following_count: k.following_count,
-    posts_count: k.posts_count,
-    language: k.language,
-    tier: computeTier(k.followers_count, null),
-    status: k.status,
-    status_flag: k.status_flag,
-    notes: k.notes ?? null,
-    competitor_affiliations: k.competitor_affiliations ?? null,
-  }))
+  const rows = kols.map((k) => {
+    const scoringText = `${k.display_name ?? ''}\n${k.bio ?? ''}`
+    return {
+      x_handle: k.x_handle.toLowerCase(),
+      display_name: k.display_name,
+      avatar_url: k.avatar_url,
+      bio: k.bio,
+      followers_count: k.followers_count,
+      following_count: k.following_count,
+      posts_count: k.posts_count,
+      language: k.language,
+      tier: computeTier(k.followers_count, null),
+      status: k.status,
+      status_flag: k.status_flag,
+      notes: k.notes ?? null,
+      competitor_affiliations: k.competitor_affiliations ?? null,
+      pm_brand_signal: countMatches(scoringText, CORE_PM_TERMS),
+      airdrop_signal: countMatches(scoringText, PM_AIRDROP_TERMS),
+    }
+  })
 
   const { data, error } = await supabase
     .from('kols')

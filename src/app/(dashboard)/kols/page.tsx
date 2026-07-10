@@ -4,14 +4,16 @@ import KolFilters from '@/components/KolFilters'
 import AddKolButton from '@/components/AddKolButton'
 import RefreshStatsButton from '@/components/RefreshStatsButton'
 import BatchAnalyzeButton from '@/components/BatchAnalyzeButton'
+import BatchExportButton from '@/components/BatchExportButton'
 import Link from 'next/link'
-import { Kol, KolStatus, Language, Tier } from '@/types'
+import { Kol, KolStatus, KolType, Language, Tier } from '@/types'
 import { computeTier } from '@/lib/utils'
 
 interface SearchParams {
   status?: KolStatus
   language?: Language
   tier?: Tier
+  kol_type?: KolType
   flag?: string
   q?: string
   silent?: string
@@ -33,6 +35,19 @@ export default async function KolsPage({
   if (params.status) query = query.eq('status', params.status)
   if (params.language) query = query.eq('language', params.language)
   if (params.tier) query = query.eq('tier', params.tier)
+  if (params.kol_type) {
+    // Priority: pm_airdrop > pm_trader > pm_generalist > unclassified.
+    // Each subsequent tier excludes the higher-priority signals.
+    if (params.kol_type === 'pm_airdrop') {
+      query = query.gte('airdrop_signal', 1)
+    } else if (params.kol_type === 'pm_trader') {
+      query = query.gte('pm_brand_signal', 1).eq('airdrop_signal', 0)
+    } else if (params.kol_type === 'pm_generalist') {
+      query = query.gte('pm_tweet_signal', 1).eq('pm_brand_signal', 0).eq('airdrop_signal', 0)
+    } else if (params.kol_type === 'unclassified') {
+      query = query.eq('pm_brand_signal', 0).eq('airdrop_signal', 0).eq('pm_tweet_signal', 0)
+    }
+  }
   if (params.flag && params.flag !== 'none') query = query.eq('status_flag', params.flag)
   if (params.silent === '1') query = query.eq('is_silent', true)
   if (params.q) {
@@ -72,6 +87,7 @@ export default async function KolsPage({
           <Link href="/kols/batch-import" className="btn btn-secondary">
             批量导入
           </Link>
+          <BatchExportButton kols={list} />
           <AddKolButton />
         </div>
       </div>

@@ -1,5 +1,6 @@
 export type Language = 'zh' | 'en' | 'ko' | 'tr' | 'vi' | 'bilingual'
 export type Tier = 'A' | 'B' | 'C'
+export type KolType = 'pm_trader' | 'pm_airdrop' | 'pm_generalist' | 'unclassified'
 export type KolStatus = 'pending' | 'watching' | 'negotiating' | 'active' | 'paused' | 'terminated'
 export type StatusFlag = 'none' | 'star' | 'stop' | 'urgent'
 export type RoleConfidence = 'low' | 'medium' | 'high'
@@ -68,12 +69,18 @@ export interface Kol {
   // 竞品
   competitor_affiliations: string[] | null
 
+  // PM 分类信号
+  pm_brand_signal: number   // bio 里 PM 平台品牌命中数（Polymarket/Kalshi/Myriad/Predict.fun 等）
+  airdrop_signal: number    // bio 里空投/积分/testnet 命中数
+  pm_tweet_signal: number   // 最近推文里 PM 品牌命中数（用于识别"非专业 PM KOL"）
+
   // AI 摘要
   ai_summary: string | null
   ai_summary_updated_at: string | null
 
   // 视图计算字段
   computed_tier?: Tier
+  kol_type?: KolType
   in_xhunt_zh_top100?: boolean
   in_xhunt_en_top100?: boolean
 }
@@ -159,10 +166,17 @@ export const ROLE_CONFIG: Record<KolRole, { label: string; labelZh: string; colo
   ambassador: { label: 'Ambassador',  labelZh: '大使',     color: 'bg-yellow-100 text-yellow-700' },
 }
 
-export const TIER_CONFIG: Record<Tier, { color: string; bg: string }> = {
-  A: { color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
-  B: { color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200' },
-  C: { color: 'text-gray-600',   bg: 'bg-gray-50 border-gray-200' },
+export const TIER_CONFIG: Record<Tier, { color: string; bg: string; label: string }> = {
+  A: { color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200', label: '大V' },
+  B: { color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     label: 'KOL' },
+  C: { color: 'text-gray-600',   bg: 'bg-gray-50 border-gray-200',     label: 'KOC' },
+}
+
+export const KOL_TYPE_CONFIG: Record<KolType, { label: string; color: string }> = {
+  pm_trader:     { label: 'PM Trader',     color: 'bg-indigo-100 text-indigo-700' },
+  pm_airdrop:    { label: 'PM 撸毛',       color: 'bg-emerald-100 text-emerald-700' },
+  pm_generalist: { label: '非专业 PM KOL', color: 'bg-amber-100 text-amber-700' },
+  unclassified:  { label: '未分类',        color: 'bg-gray-100 text-gray-500' },
 }
 
 export const LANGUAGE_CONFIG: Record<Language, { label: string; flag: string }> = {

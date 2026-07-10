@@ -6,11 +6,13 @@ import { getTwikitUserTweets, getTwikitUserFollowing, searchTwikitTweets, search
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle, hasXApiFallback } from '@/lib/x-api-fallback'
 import {
   BRAND_HANDLE_HINTS,
-  COMMUNITY_TERMS,
   CORE_PM_TERMS,
   PERSONAL_MARKERS,
+  PM_AIRDROP_TERMS,
   PROJECT_BLOCK_TERMS,
   RESEARCH_TERMS,
+  SPORTS_BLOCK_TERMS,
+  STOCK_BLOCK_TERMS,
   TOOL_TERMS,
   TRADER_TERMS,
   countMatches,
@@ -37,9 +39,6 @@ function isCommunityLink(url: string): boolean {
 }
 
 function detectCommunity(bio: string): { has: boolean; links: string[] } {
-  const lower = bio.toLowerCase()
-  const hasTerm = COMMUNITY_TERMS.some((term) => lower.includes(term))
-
   // Extract community-specific links (not all URLs)
   const communityPatterns = [
     /https?:\/\/t\.me\/[\w-]+/g,
@@ -85,7 +84,9 @@ function detectCommunity(bio: string): { has: boolean; links: string[] } {
   }
 
   const uniqueLinks = [...new Set(links)]
-  return { has: hasTerm || uniqueLinks.length > 0, links: uniqueLinks }
+  // Strict rule: only count as private community when we actually extract a URL to click.
+  // Keyword-only mentions ("join our community") without a link are NOT actionable → treated as no community.
+  return { has: uniqueLinks.length > 0, links: uniqueLinks }
 }
 
 
@@ -155,12 +156,14 @@ function isLikelyProjectAccount(
   return false
 }
 
-const SEARCH_SAMPLE_COUNT = 20
-const ENRICH_CANDIDATE_LIMIT = 5
+const SEARCH_SAMPLE_COUNT = 40
+const ENRICH_CANDIDATE_LIMIT = 8
 const DISCOVER_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour cache
-const MAX_SEARCH_CALLS = 2 // max search API calls (rate-limited)
-const GRAPH_EXPAND_SEEDS = 3 // expand following from top N seed KOLs
+const MAX_SEARCH_CALLS = 5 // max search API calls (rate-limited)
+const GRAPH_EXPAND_SEEDS = 6 // expand following from top N seed KOLs
+const GRAPH_FOLLOWING_PER_SEED = 100
 const REQUEST_DELAY_MS = 1500
+const PROFILE_SCORE_THRESHOLD = 28
 
 type DiscoverResponse = {
   results: DiscoveryResult[]
@@ -188,7 +191,15 @@ export interface DiscoveryResult {
   has_private_community: boolean
   community_links: string[]
   avg_engagement: number
+  // combined signal — kept for legacy consumers
   prediction_market_signal: number
+  // fine-grained signals for precise scoring
+  pm_brand_signal: number
+  trader_signal: number
+  research_signal: number
+  airdrop_signal: number
+  sports_penalty: number
+  stock_penalty: number
   bio_tool_signal: number
   community_signal: number
   recent_topic_signal: number
@@ -237,7 +248,7 @@ async function expandViaFollowing(
   for (const userId of seedUserIds) {
     try {
       await delay(REQUEST_DELAY_MS)
-      const following = await getTwikitUserFollowing(userId, 50)
+      const following = await getTwikitUserFollowing(userId, GRAPH_FOLLOWING_PER_SEED)
       for (const user of following) {
         if (seen.has(user.id)) continue
         if (user.followers_count < minFollowers) continue
@@ -316,6 +327,12 @@ function baseResultFromUser(user: {
     community_links: community.links,
     avg_engagement: 0,
     prediction_market_signal: 0,
+    pm_brand_signal: countMatches(bio, CORE_PM_TERMS),
+    trader_signal: countMatches(bio, TRADER_TERMS),
+    research_signal: countMatches(bio, RESEARCH_TERMS),
+    airdrop_signal: countMatches(bio, PM_AIRDROP_TERMS),
+    sports_penalty: countMatches(bio, SPORTS_BLOCK_TERMS),
+    stock_penalty: countMatches(bio, STOCK_BLOCK_TERMS),
     bio_tool_signal: countMatches(bio, TOOL_TERMS),
     community_signal: community.has ? 1 + community.links.length : 0,
     recent_topic_signal: 0,
@@ -325,21 +342,34 @@ function baseResultFromUser(user: {
 }
 
 function scoreBioAndIdentity(item: DiscoveryResult, text: string) {
-  item.prediction_market_signal += countMatches(text, CORE_PM_TERMS)
-  item.prediction_market_signal += countMatches(text, TRADER_TERMS)
-  item.prediction_market_signal += countMatches(text, RESEARCH_TERMS)
+  // Track each signal separately so scoring can weight them differently.
+  item.pm_brand_signal = Math.max(item.pm_brand_signal, countMatches(text, CORE_PM_TERMS))
+  item.trader_signal = Math.max(item.trader_signal, countMatches(text, TRADER_TERMS))
+  item.research_signal = Math.max(item.research_signal, countMatches(text, RESEARCH_TERMS))
+  item.airdrop_signal = Math.max(item.airdrop_signal, countMatches(text, PM_AIRDROP_TERMS))
   item.bio_tool_signal = Math.max(item.bio_tool_signal, countMatches(text, TOOL_TERMS))
+  item.sports_penalty = Math.max(item.sports_penalty, countMatches(text, SPORTS_BLOCK_TERMS))
+  item.stock_penalty = Math.max(item.stock_penalty, countMatches(text, STOCK_BLOCK_TERMS))
+  // legacy combined field for any external consumers
+  item.prediction_market_signal = item.pm_brand_signal + item.trader_signal + item.research_signal
 }
 
 function computeRelevance(item: DiscoveryResult) {
-  return (
+  // Two target categories: PM Trader (needs PM brand + trader signal) and PM 撸毛 KOL (needs PM brand + airdrop signal).
+  // Generic trader/research/airdrop terms only count when there's PM context to avoid crypto-degen / sports noise.
+  const pmContext = item.pm_brand_signal > 0 ? 1 : 0.25
+  const positive =
     item.keyword_post_count * 3 +
-    item.prediction_market_signal * 4 +
-    item.bio_tool_signal * 5 +
-    item.community_signal * 6 +
+    item.pm_brand_signal * 15 +
+    item.trader_signal * 4 * pmContext +      // PM Trader lane
+    item.airdrop_signal * 8 * pmContext +     // PM 撸毛 lane — high weight
+    item.research_signal * 3 * pmContext +
+    item.bio_tool_signal * 4 +
+    item.community_signal * 10 +              // Private TG/Discord — heavily rewarded
     item.recent_topic_signal * 5 +
     Math.min(12, Math.round(item.avg_engagement / 15))
-  )
+  const penalty = item.sports_penalty * 10 + item.stock_penalty * 8
+  return Math.max(0, positive - penalty)
 }
 
 interface ProfileStats {
@@ -440,27 +470,38 @@ async function annotateExistingKols(results: DiscoveryResult[]) {
   return results
 }
 
-async function fallbackDbResults(keywords: string[], minFollowers: number, timeRange: number): Promise<DiscoveryResult[]> {
-  const clauses = keywords
-    .map((keyword) => keyword.trim())
-    .filter(Boolean)
-    .flatMap((keyword) => [
-      `x_handle.ilike.%${keyword}%`,
-      `display_name.ilike.%${keyword}%`,
-      `bio.ilike.%${keyword}%`,
-    ])
+async function fallbackDbResults(keywords: string[], minFollowers: number, _timeRange: number): Promise<DiscoveryResult[]> {
+  const cleanKeywords = keywords.map((k) => k.trim()).filter(Boolean)
+  const pmRelated = cleanKeywords.some((k) => {
+    const norm = normalizeKeyword(k)
+    return (
+      norm.includes('predict') || norm.includes('poly') || norm.includes('kalshi') ||
+      norm.includes('myriad') || norm.includes('limitless') || norm.includes('manifold') ||
+      norm.includes('forecast') || norm.includes('event')
+    )
+  })
+
+  // Build OR clauses: literal bio/handle/name match…
+  const clauses = cleanKeywords.flatMap((keyword) => [
+    `x_handle.ilike.%${keyword}%`,
+    `display_name.ilike.%${keyword}%`,
+    `bio.ilike.%${keyword}%`,
+  ])
+  // …plus: for PM-related searches, also surface KOLs we've already classified as PM,
+  // even if the keyword text isn't in their bio (they're the intended audience).
+  if (pmRelated) {
+    clauses.push('pm_brand_signal.gte.1', 'airdrop_signal.gte.1', 'pm_tweet_signal.gte.1')
+  }
 
   if (clauses.length === 0) return []
 
-  const since = new Date()
-  since.setDate(since.getDate() - timeRange)
-
+  // Do NOT filter by last_post_at — many KOLs haven't had refresh-stats run yet
+  // and would be excluded even though they're valid candidates.
   const { data } = await supabase
     .from('kols_with_computed')
     .select('*')
     .or(clauses.join(','))
     .gte('followers_count', minFollowers)
-    .gte('last_post_at', since.toISOString())
     .limit(150)
 
   return (data ?? [])
@@ -630,8 +671,17 @@ export async function POST(req: NextRequest) {
     }
 
     const results = list
-      .filter((item) => item.profile_score >= 35)
+      // ICP rule: private TG/Discord community bypasses the generic profile-quality threshold
+      // (a PM-adjacent account with a TG group is a MUST-KEEP even if its bio is thin).
+      .filter((item) => item.community_signal >= 1 || item.profile_score >= PROFILE_SCORE_THRESHOLD)
       .filter((item) => !rejectedHandles.has(item.x_handle))
+      // Hard block: obvious sports betting or stock trader with ZERO PM context (brand OR airdrop) — NOT our ICP.
+      // Community link does NOT bypass this — an NFL parlays handicapper with a Telegram is still noise.
+      .filter((item) => !(
+        (item.sports_penalty >= 2 || item.stock_penalty >= 2) &&
+        item.pm_brand_signal === 0 &&
+        item.airdrop_signal === 0
+      ))
       .sort((a, b) => {
         if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score
         return b.followers_count - a.followers_count
