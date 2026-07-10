@@ -12,6 +12,7 @@ interface Props {
     flag?: string
     q?: string
     silent?: string
+    show_dead?: string
   }
 }
 
@@ -112,6 +113,16 @@ export default function KolFilters({ params }: Props) {
           onChange={(e) => update('silent', e.target.checked ? '1' : '')}
         />
         仅看沉默账号
+      </label>
+
+      {/* Include dead accounts (default: hidden) */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#64748b', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={params.show_dead === '1'}
+          onChange={(e) => update('show_dead', e.target.checked ? '1' : '')}
+        />
+        显示已失效账号
       </label>
 
       {/* Clear */}

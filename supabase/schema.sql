@@ -61,6 +61,10 @@ CREATE TABLE kols (
   airdrop_signal  SMALLINT NOT NULL DEFAULT 0,   -- bio 里空投/积分/testnet 词命中数（撸毛信号）
   pm_tweet_signal SMALLINT NOT NULL DEFAULT 0,   -- 最近 5 条推文里 PM 品牌命中数（识别"非专业 PM KOL"）
 
+  -- 验活
+  is_dead             BOOLEAN,                   -- true: X 账号已失效；false: 已验证存活；NULL: 未验过
+  last_alive_check_at TIMESTAMPTZ,               -- 上次验活时间
+
   -- AI 自动摘要
   ai_summary TEXT,
   ai_summary_updated_at TIMESTAMPTZ

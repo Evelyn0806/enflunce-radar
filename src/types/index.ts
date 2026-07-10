@@ -74,6 +74,10 @@ export interface Kol {
   airdrop_signal: number    // bio 里空投/积分/testnet 命中数
   pm_tweet_signal: number   // 最近推文里 PM 品牌命中数（用于识别"非专业 PM KOL"）
 
+  // 验活
+  is_dead: boolean | null              // true: X 账号已失效；false: 已验证存活；null: 未验过
+  last_alive_check_at: string | null   // 上次验活时间
+
   // AI 摘要
   ai_summary: string | null
   ai_summary_updated_at: string | null

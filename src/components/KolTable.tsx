@@ -90,9 +90,10 @@ export default function KolTable({ kols }: Props) {
             const flagCfg = FLAG_CONFIG[kol.status_flag]
             const langCfg = LANGUAGE_CONFIG[kol.language]
             const icons = communityIcons(kol.community_platforms, kol.community_links)
+            const isDead = kol.is_dead === true
 
             return (
-              <tr key={kol.id}>
+              <tr key={kol.id} style={isDead ? { opacity: 0.55, background: '#fafafa' } : undefined}>
                 {/* Avatar */}
                 <td>
                   {kol.avatar_url
@@ -105,8 +106,23 @@ export default function KolTable({ kols }: Props) {
 
                 {/* Handle + X link */}
                 <td>
-                  <div style={{ fontWeight: 500, color: '#0f172a' }}>
+                  <div style={{ fontWeight: 500, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {kol.display_name ?? kol.x_handle}
+                    {isDead && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          fontWeight: 600,
+                        }}
+                        title={`账号已失效${kol.last_alive_check_at ? ` · 检查于 ${kol.last_alive_check_at.slice(0, 10)}` : ''}`}
+                      >
+                        已失效
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>@{kol.x_handle}</span>
@@ -170,9 +186,9 @@ export default function KolTable({ kols }: Props) {
                   )}
                 </td>
 
-                {/* Community — show links or 无 */}
+                {/* Community — show links or 无 (dead accounts always show 无 since link data is stale) */}
                 <td>
-                  {kol.has_private_community && icons && icons.length > 0 ? (
+                  {!isDead && kol.has_private_community && icons && icons.length > 0 ? (
                     <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                       {icons.map((ic) => (
                         ic.url ? (
@@ -187,7 +203,9 @@ export default function KolTable({ kols }: Props) {
                       ))}
                     </div>
                   ) : (
-                    <span style={{ color: '#94a3b8', fontSize: 12 }}>无</span>
+                    <span style={{ color: '#94a3b8', fontSize: 12 }}>
+                      {isDead ? '无（账号已失效）' : '无'}
+                    </span>
                   )}
                 </td>
 

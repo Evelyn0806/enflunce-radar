@@ -5,6 +5,7 @@ import AddKolButton from '@/components/AddKolButton'
 import RefreshStatsButton from '@/components/RefreshStatsButton'
 import BatchAnalyzeButton from '@/components/BatchAnalyzeButton'
 import BatchExportButton from '@/components/BatchExportButton'
+import CheckLivenessButton from '@/components/CheckLivenessButton'
 import Link from 'next/link'
 import { Kol, KolStatus, KolType, Language, Tier } from '@/types'
 import { computeTier } from '@/lib/utils'
@@ -17,6 +18,7 @@ interface SearchParams {
   flag?: string
   q?: string
   silent?: string
+  show_dead?: string
 }
 
 export default async function KolsPage({
@@ -50,6 +52,8 @@ export default async function KolsPage({
   }
   if (params.flag && params.flag !== 'none') query = query.eq('status_flag', params.flag)
   if (params.silent === '1') query = query.eq('is_silent', true)
+  // Default: hide accounts already confirmed dead. Explicit opt-in via ?show_dead=1.
+  if (params.show_dead !== '1') query = query.or('is_dead.is.null,is_dead.eq.false')
   if (params.q) {
     query = query.or(
       `x_handle.ilike.%${params.q}%,display_name.ilike.%${params.q}%,bio.ilike.%${params.q}%`
@@ -83,6 +87,7 @@ export default async function KolsPage({
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <BatchAnalyzeButton />
+          <CheckLivenessButton kolIds={list.map(k => k.id)} />
           <RefreshStatsButton kolIds={list.map(k => k.id)} />
           <Link href="/kols/batch-import" className="btn btn-secondary">
             批量导入
