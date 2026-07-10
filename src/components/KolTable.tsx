@@ -152,9 +152,12 @@ export default function KolTable({ kols }: Props) {
                   </span>
                 </td>
 
-                {/* Type — PM Trader / PM 撸毛 / 非专业 PM KOL / 未分类 */}
+                {/* Type — PM Trader / PM 撸毛 / 非专业 PM KOL / 未分类
+                    Dead accounts: classification was computed from stale bio → suppress. */}
                 <td>
-                  {(() => {
+                  {isDead ? (
+                    <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
+                  ) : (() => {
                     const kolType: KolType =
                       kol.kol_type ??
                       ((kol.airdrop_signal ?? 0) >= 1 ? 'pm_airdrop'

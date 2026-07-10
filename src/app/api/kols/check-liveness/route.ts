@@ -1,34 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { getTwikitUser } from '@/lib/twikit'
-import { fetchXUserByHandle } from '@/lib/x-api-fallback'
 
-// Classify a fetch error into "user is gone" vs "transient issue we can't tell".
-// Only the first case is safe to mark as is_dead=true.
-function isUserGoneError(err: unknown): boolean {
-  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
-  return (
-    msg.includes('user not found') ||
-    msg.includes('does not exist') ||
-    msg.includes('has been suspended') ||
-    msg.includes('suspended') ||
-    msg.includes('account has been deleted') ||
-    msg.includes('deleted') ||
-    msg.includes('404') ||
-    msg.includes('no such user')
-  )
-}
-
-function isTransientError(err: unknown): boolean {
-  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
-  return (
-    msg.includes('rate limit') ||
-    msg.includes('429') ||
-    msg.includes('timeout') ||
-    msg.includes('network') ||
-    msg.includes('ec') // ECONNRESET / ETIMEDOUT
-  )
-}
+// Aliveness detection via X.com public HTML.
+//   Live account : <title>Name (@handle) / X</title>
+//   Dead account : <title>Profile / X</title>   (X's generic placeholder)
+// This works without any API auth and doesn't depend on the (currently disconnected) twikit bridge.
 
 interface KolRow {
   id: string
@@ -39,13 +15,46 @@ interface PerResult {
   id: string
   handle: string
   status: 'alive' | 'dead' | 'unknown'
-  followers_count?: number
   error?: string
 }
 
-const REQUEST_DELAY_MS = 1200
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
+const REQUEST_DELAY_MS = 800
+const FETCH_TIMEOUT_MS = 12_000
 
 function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)) }
+
+async function probeXProfile(handle: string): Promise<{ status: 'alive' | 'dead' | 'unknown'; err?: string }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetch(`https://twitter.com/${handle}`, {
+      redirect: 'follow',
+      headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9' },
+      signal: controller.signal,
+    })
+    if (res.status >= 500 || res.status === 429) {
+      return { status: 'unknown', err: `HTTP ${res.status}` }
+    }
+    const html = await res.text()
+    // Live profiles: title is "Name (@handle) / X"
+    if (/<title>[^<]*\(@[\w-]+\)[^<]*<\/title>/i.test(html)) return { status: 'alive' }
+    // Dead profiles: X shows a generic placeholder title.
+    if (/<title>Profile\s*\/\s*X<\/title>|<title>X<\/title>|<meta property="og:title" content="X"\s*\/?>/i.test(html)) {
+      return { status: 'dead' }
+    }
+    // Suspended/temporary redirect variants.
+    if (/account (has been )?suspended|this account doesn.?t exist|user is not authorized/i.test(html)) {
+      return { status: 'dead' }
+    }
+    return { status: 'unknown', err: 'ambiguous html' }
+  } catch (e) {
+    return { status: 'unknown', err: e instanceof Error ? e.message : String(e) }
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export async function POST(req: NextRequest) {
   const { kol_ids }: { kol_ids: string[] } = await req.json()
@@ -63,56 +72,16 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString()
 
   for (const k of (kols ?? []) as KolRow[]) {
-    let status: 'alive' | 'dead' | 'unknown' = 'unknown'
-    let followers: number | undefined
-    let errMsg: string | undefined
+    const { status, err } = await probeXProfile(k.x_handle)
 
-    // Try twikit first (matches the app's other flows).
-    try {
-      const user = await getTwikitUser(k.x_handle)
-      if (user?.id) {
-        status = 'alive'
-        followers = user.followers_count
-      }
-    } catch (e) {
-      if (isUserGoneError(e)) {
-        status = 'dead'
-        errMsg = e instanceof Error ? e.message : String(e)
-      } else if (!isTransientError(e)) {
-        // Fall back to X API v2 for confirmation.
-        try {
-          const user = await fetchXUserByHandle(k.x_handle)
-          if (user) {
-            status = 'alive'
-            followers = user.followers_count
-          } else {
-            status = 'dead'
-          }
-        } catch (e2) {
-          if (isUserGoneError(e2)) status = 'dead'
-          errMsg = e2 instanceof Error ? e2.message : String(e2)
-        }
-      } else {
-        errMsg = e instanceof Error ? e.message : String(e)
-      }
-    }
-
-    // Persist based on classification (never overwrite with 'unknown').
     if (status === 'alive') {
-      await supabase.from('kols').update({
-        is_dead: false,
-        last_alive_check_at: now,
-        ...(followers != null ? { followers_count: followers } : {}),
-      }).eq('id', k.id)
+      await supabase.from('kols').update({ is_dead: false, last_alive_check_at: now }).eq('id', k.id)
     } else if (status === 'dead') {
-      await supabase.from('kols').update({
-        is_dead: true,
-        last_alive_check_at: now,
-      }).eq('id', k.id)
+      await supabase.from('kols').update({ is_dead: true, last_alive_check_at: now }).eq('id', k.id)
     }
+    // status='unknown' → don't overwrite is_dead; will be retried next run.
 
-    results.push({ id: k.id, handle: k.x_handle, status, followers_count: followers, error: errMsg })
-
+    results.push({ id: k.id, handle: k.x_handle, status, error: err })
     await delay(REQUEST_DELAY_MS)
   }
 
