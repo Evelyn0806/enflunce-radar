@@ -19,6 +19,28 @@ if (!url || !key) {
 }
 const supabase = createClient(url, key)
 
+// ---- Language detection (mirrors src/lib/utils.ts detectLanguage) ----
+function detectLanguage(bio, displayName) {
+  const text = `${displayName ?? ''} ${bio ?? ''}`
+  if (!text.trim()) return 'en'
+
+  const zhChars = text.match(/[一-鿿㐀-䶿]/g)?.length ?? 0
+  const koChars = text.match(/[가-힯ᄀ-ᇿ]/g)?.length ?? 0
+  const viDiacritics = text.match(/[ăâđêôơư]/gi)?.length ?? 0
+  const trChars = text.match(/[ğışçöüĞİŞÇÖÜ]/g)?.length ?? 0
+  const totalLen = text.replace(/\s+/g, '').length || 1
+
+  const zhRatio = zhChars / totalLen
+  const koRatio = koChars / totalLen
+
+  if (zhRatio > 0.15 && koRatio > 0.05) return 'bilingual'
+  if (zhRatio > 0.1 || zhChars >= 5) return 'zh'
+  if (koRatio > 0.1 || koChars >= 5) return 'ko'
+  if (viDiacritics >= 3) return 'vi'
+  if (trChars >= 3) return 'tr'
+  return 'en'
+}
+
 // ---- Tier logic (mirrors src/lib/utils.ts computeTier) ----
 function computeTier(followers, rate) {
   const r = rate ?? 0
@@ -125,7 +147,7 @@ async function main() {
 
   const { data: kols, error } = await supabase
     .from('kols')
-    .select('id, x_handle, display_name, bio, followers_count, avg_engagement_rate, tier, has_private_community, community_links, community_platforms, pm_brand_signal, airdrop_signal')
+    .select('id, x_handle, display_name, bio, followers_count, avg_engagement_rate, tier, language, has_private_community, community_links, community_platforms, pm_brand_signal, airdrop_signal')
   if (error) {
     console.error('Failed to fetch KOLs:', error.message)
     process.exit(1)
@@ -134,11 +156,13 @@ async function main() {
 
   const tierMoves = { A_up: 0, B_up: 0, C_up: 0, A_down: 0, B_down: 0, unchanged: 0 }
   const typeCounts = { pm_trader: 0, pm_airdrop: 0, unclassified: 0 }
+  const langMoves = { to_zh: 0, to_en: 0, to_ko: 0, to_bilingual: 0, other: 0 }
   const communityNewlyDetected = []
   const changes = []
 
   for (const k of kols) {
     const newTier = computeTier(k.followers_count ?? 0, k.avg_engagement_rate)
+    const newLang = detectLanguage(k.bio, k.display_name)
     const community = detectCommunity(k.bio)
     const textForScoring = `${k.display_name ?? ''}\n${k.bio ?? ''}`
     const newPmBrand = countMatches(textForScoring, CORE_PM_TERMS)
@@ -159,11 +183,18 @@ async function main() {
       [...newPlatforms].some((p) => !oldPlatforms.has(p))
 
     const tierChanged = newTier !== k.tier
+    const langChanged = newLang !== k.language
     const communityFlagChanged = community.has !== !!k.has_private_community
     const pmBrandChanged = newPmBrand !== (k.pm_brand_signal ?? 0)
     const airdropChanged = newAirdrop !== (k.airdrop_signal ?? 0)
 
-    const dirty = tierChanged || communityFlagChanged || linksChanged || platformsChanged || pmBrandChanged || airdropChanged
+    if (langChanged) {
+      const key = `to_${newLang}`
+      if (key in langMoves) langMoves[key]++
+      else langMoves.other++
+    }
+
+    const dirty = tierChanged || langChanged || communityFlagChanged || linksChanged || platformsChanged || pmBrandChanged || airdropChanged
     if (!dirty) {
       tierMoves.unchanged++
       continue
@@ -186,6 +217,7 @@ async function main() {
       handle: k.x_handle,
       followers: k.followers_count,
       tier: { old: k.tier, new: newTier, changed: tierChanged },
+      language: { old: k.language, new: newLang, changed: langChanged },
       community: {
         old_has: !!k.has_private_community,
         new_has: community.has,
@@ -214,6 +246,12 @@ async function main() {
   console.log(`PM Trader:               ${typeCounts.pm_trader}`)
   console.log(`PM 撸毛:                 ${typeCounts.pm_airdrop}`)
   console.log(`未分类:                  ${typeCounts.unclassified}`)
+  console.log(`\n--- Language re-detection ---`)
+  console.log(`Relabeled to zh:         ${langMoves.to_zh}`)
+  console.log(`Relabeled to en:         ${langMoves.to_en}`)
+  console.log(`Relabeled to bilingual:  ${langMoves.to_bilingual}`)
+  console.log(`Relabeled to ko:         ${langMoves.to_ko}`)
+  console.log(`Relabeled to other:      ${langMoves.other}`)
   console.log(`\nCommunity newly detected: ${communityNewlyDetected.length}`)
   if (communityNewlyDetected.length > 0) {
     for (const c of communityNewlyDetected.slice(0, 15)) {
@@ -237,6 +275,7 @@ async function main() {
       .from('kols')
       .update({
         tier: c.tier.new,
+        language: c.language.new,
         has_private_community: c.community.new_has,
         community_links: c.community.new_links.length > 0 ? c.community.new_links : null,
         community_platforms: c.community.new_platforms.length > 0 ? c.community.new_platforms : null,
