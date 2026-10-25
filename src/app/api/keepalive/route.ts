@@ -39,16 +39,24 @@ export async function GET(req: NextRequest) {
     problems.push(`Twikit 桥无法访问：${message}`)
   }
 
-  let alerted = false
+  let alert: { sent: boolean; reason?: string } = { sent: false, reason: 'no problems' }
   if (problems.length > 0) {
-    alerted = await sendTelegramAlert(
+    alert = await sendTelegramAlert(
       `⚠️ En·flunce Radar 每日健康检查发现问题\n\n${problems.map((p) => `• ${p}`).join('\n')}\n\n` +
       'Twikit cookie 失效时：重新登录对应 X 小号，导出 cookie，更新 Vercel 环境变量后重新部署。'
     )
   }
 
   return NextResponse.json(
-    { ok: problems.length === 0, kols: count, twikit, problems, alerted, at: new Date().toISOString() },
+    {
+      ok: problems.length === 0,
+      kols: count,
+      twikit,
+      problems,
+      alerted: alert.sent,
+      alert_error: alert.sent ? undefined : alert.reason,
+      at: new Date().toISOString(),
+    },
     { status: error ? 500 : 200 }
   )
 }
