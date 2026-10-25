@@ -49,6 +49,15 @@ export interface TwikitTweet {
   user: TwikitUser | null
 }
 
+export interface TwikitHealth {
+  accounts: { index: number; ok: boolean; error?: string }[]
+}
+
+// Probes each configured cookie account separately (see api/xbridge.py check_accounts).
+export function checkTwikitHealth() {
+  return callTwikit<TwikitHealth>('health', {})
+}
+
 export function getTwikitUser(screenName: string) {
   return callTwikit<TwikitUser>('user', { screen_name: screenName })
 }

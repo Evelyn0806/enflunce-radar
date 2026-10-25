@@ -71,6 +71,20 @@ def run_with_rotation(coro_fn, *args, max_retries=None):
     raise RuntimeError('All cookie accounts rate limited')
 
 
+def check_accounts(query='polymarket'):
+    """Probe every cookie account individually (no rotation) so one dead account is visible
+    even while another still serves requests. Uses user search: unlike a profile lookup it
+    requires a logged-in session, so expired cookies fail here."""
+    results = []
+    for index, cookies in enumerate(load_cookie_pools()):
+        try:
+            users = asyncio.run(search_users(create_client_from_cookie_dict(cookies), query, 1))
+            results.append({'index': index + 1, 'ok': len(users) > 0})
+        except Exception as e:
+            results.append({'index': index + 1, 'ok': False, 'error': str(e)[:300]})
+    return {'accounts': results}
+
+
 def send_json(handler, status, data):
     handler.send_response(status)
     handler.send_header('Content-Type', 'application/json')
@@ -112,6 +126,8 @@ class handler(BaseHTTPRequestHandler):
                 result = run_with_rotation(get_user_tweets, payload['user_id'], int(payload.get('count', 20)))
             elif action == 'user-following':
                 result = run_with_rotation(get_user_following, payload['user_id'], int(payload.get('count', 50)))
+            elif action == 'health':
+                result = check_accounts()
             else:
                 send_json(self, 404, {'error': 'Not found'})
                 return
