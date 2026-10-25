@@ -5,21 +5,18 @@ import { Language, Tier } from '@/types'
 import { getTwikitUserTweets, getTwikitUserFollowing, searchTwikitTweets, searchTwikitUsers, tryGetTwikitUser } from '@/lib/twikit'
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle, hasXApiFallback } from '@/lib/x-api-fallback'
 import {
-  BRAND_HANDLE_HINTS,
-  CORE_PM_TERMS,
-  PERSONAL_MARKERS,
   PM_AIRDROP_TERMS,
-  PROJECT_BLOCK_TERMS,
   RESEARCH_TERMS,
   SPORTS_BLOCK_TERMS,
   STOCK_BLOCK_TERMS,
   TOOL_TERMS,
-  TRADER_TERMS,
   countMatches,
   expandDiscoverKeywords,
   fallbackHandlesForKeywords,
+  isLikelyBrandAccount,
   normalizeKeyword,
 } from '@/lib/discover-profile'
+import { ALL_TRACKS, AccountType, TRACKS, Track, isTrack, trackHitMap, trackHits } from '@/lib/tracks'
 
 function isCommunityLink(url: string): boolean {
   const lower = url.toLowerCase()
@@ -111,11 +108,13 @@ function buildXUrl(handle: string) {
   return `https://x.com/${handle}`
 }
 
-function makeCacheKey(keywords: string[], minFollowers: number, timeRange: number) {
+function makeCacheKey(keywords: string[], minFollowers: number, timeRange: number, tracks: Track[], includeBrand: boolean) {
   return JSON.stringify({
     keywords: keywords.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean).sort(),
     minFollowers,
     timeRange,
+    tracks: [...tracks].sort(),
+    includeBrand,
   })
 }
 
@@ -131,29 +130,6 @@ function setCachedDiscoverResponse(cacheKey: string, payload: DiscoverResponse) 
     expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
     payload,
   })
-}
-
-function isLikelyProjectAccount(
-  user: { screen_name: string; name: string; description: string; followers_count: number; following_count: number },
-  originalKeywords: string[]
-) {
-  const text = `${user.name}\n${user.description}`.toLowerCase()
-  const handle = user.screen_name.toLowerCase()
-  const name = user.name.toLowerCase()
-  const projectSignal = countMatches(text, PROJECT_BLOCK_TERMS)
-  const personalSignal = countMatches(text, PERSONAL_MARKERS)
-  const orgHandleSignal = /app|labs|official|team|news|intel|dev|sport|sports|fc|money|analytics|zone|bot|terminal|market(s)?$/.test(handle)
-  const looksOrgByName = /official|analytics|news|developers|sports|money|terminal|bot|app|market/.test(name)
-  const brandLead = originalKeywords.some((keyword) => {
-    const normalized = normalizeKeyword(keyword)
-    return normalized.length >= 4 && handle.startsWith(normalized)
-  })
-
-  if (personalSignal > 0 && projectSignal === 0 && !orgHandleSignal && !brandLead) return false
-  if (brandLead && personalSignal === 0) return true
-  if (projectSignal >= 2 && personalSignal === 0) return true
-  if ((orgHandleSignal || looksOrgByName) && projectSignal >= 1) return true
-  return false
 }
 
 const SEARCH_SAMPLE_COUNT = 40
@@ -191,11 +167,12 @@ export interface DiscoveryResult {
   has_private_community: boolean
   community_links: string[]
   avg_engagement: number
-  // combined signal — kept for legacy consumers
-  prediction_market_signal: number
+  // 赛道: per-track term hits from bio/name + recent tweets; tracks = those with hits
+  track_hits: Record<Track, number>
+  tracks: Track[]
+  account_type: AccountType
   // fine-grained signals for precise scoring
-  pm_brand_signal: number
-  trader_signal: number
+  topic_signal: number
   research_signal: number
   airdrop_signal: number
   sports_penalty: number
@@ -252,9 +229,8 @@ async function expandViaFollowing(
       for (const user of following) {
         if (seen.has(user.id)) continue
         if (user.followers_count < minFollowers) continue
-        if (isLikelyProjectAccount(user, originalKeywords)) continue
 
-        const result = baseResultFromUser(user)
+        const result = baseResultFromUser(user, originalKeywords)
         result.keyword_post_count += 1 // found via social graph
         scoreBioAndIdentity(result, `${result.display_name}\n${result.bio}`)
         seen.set(user.id, result)
@@ -306,9 +282,10 @@ function baseResultFromUser(user: {
   followers_count: number
   following_count: number
   statuses_count: number
-}): DiscoveryResult {
+}, originalKeywords: string[] = []): DiscoveryResult {
   const bio = user.description ?? ''
   const community = detectCommunity(bio)
+  const hits = trackHitMap(`${user.name}\n${bio}`)
   return {
     twitter_id: user.id,
     x_handle: user.screen_name.toLowerCase(),
@@ -326,9 +303,10 @@ function baseResultFromUser(user: {
     has_private_community: community.has,
     community_links: community.links,
     avg_engagement: 0,
-    prediction_market_signal: 0,
-    pm_brand_signal: countMatches(bio, CORE_PM_TERMS),
-    trader_signal: countMatches(bio, TRADER_TERMS),
+    track_hits: hits,
+    tracks: ALL_TRACKS.filter((t) => hits[t] > 0),
+    account_type: isLikelyBrandAccount(user, originalKeywords) ? 'brand' : 'personal',
+    topic_signal: 0,
     research_signal: countMatches(bio, RESEARCH_TERMS),
     airdrop_signal: countMatches(bio, PM_AIRDROP_TERMS),
     sports_penalty: countMatches(bio, SPORTS_BLOCK_TERMS),
@@ -341,34 +319,48 @@ function baseResultFromUser(user: {
   }
 }
 
+function addTrackHits(item: DiscoveryResult, text: string) {
+  for (const track of ALL_TRACKS) {
+    item.track_hits[track] = Math.max(item.track_hits[track], trackHits(text, track))
+  }
+  item.tracks = ALL_TRACKS.filter((t) => item.track_hits[t] > 0)
+}
+
+// Hits in the operator-selected tracks (or any track when none are selected).
+function selectedTrackHits(text: string, tracks: Track[]) {
+  return (tracks.length > 0 ? tracks : ALL_TRACKS).reduce((sum, t) => sum + trackHits(text, t), 0)
+}
+
 function scoreBioAndIdentity(item: DiscoveryResult, text: string) {
   // Track each signal separately so scoring can weight them differently.
-  item.pm_brand_signal = Math.max(item.pm_brand_signal, countMatches(text, CORE_PM_TERMS))
-  item.trader_signal = Math.max(item.trader_signal, countMatches(text, TRADER_TERMS))
+  addTrackHits(item, text)
   item.research_signal = Math.max(item.research_signal, countMatches(text, RESEARCH_TERMS))
   item.airdrop_signal = Math.max(item.airdrop_signal, countMatches(text, PM_AIRDROP_TERMS))
   item.bio_tool_signal = Math.max(item.bio_tool_signal, countMatches(text, TOOL_TERMS))
   item.sports_penalty = Math.max(item.sports_penalty, countMatches(text, SPORTS_BLOCK_TERMS))
   item.stock_penalty = Math.max(item.stock_penalty, countMatches(text, STOCK_BLOCK_TERMS))
-  // legacy combined field for any external consumers
-  item.prediction_market_signal = item.pm_brand_signal + item.trader_signal + item.research_signal
 }
 
-function computeRelevance(item: DiscoveryResult) {
-  // Two target categories: PM Trader (needs PM brand + trader signal) and PM 撸毛 KOL (needs PM brand + airdrop signal).
-  // Generic trader/research/airdrop terms only count when there's PM context to avoid crypto-degen / sports noise.
-  const pmContext = item.pm_brand_signal > 0 ? 1 : 0.25
+function computeRelevance(item: DiscoveryResult, tracks: Track[]) {
+  // Track hits in the selected 赛道 drive relevance; hits in other crypto tracks count a little.
+  // Generic research/airdrop terms only count fully when there's crypto-track context.
+  const focus = tracks.length > 0 ? tracks : ALL_TRACKS
+  const focusHits = focus.reduce((sum, t) => sum + item.track_hits[t], 0)
+  const otherHits = ALL_TRACKS.filter((t) => !focus.includes(t)).reduce((sum, t) => sum + item.track_hits[t], 0)
+  const cryptoContext = focusHits + otherHits > 0 ? 1 : 0.25
   const positive =
     item.keyword_post_count * 3 +
-    item.pm_brand_signal * 15 +
-    item.trader_signal * 4 * pmContext +      // PM Trader lane
-    item.airdrop_signal * 8 * pmContext +     // PM 撸毛 lane — high weight
-    item.research_signal * 3 * pmContext +
+    focusHits * 12 +
+    otherHits * 3 +
+    item.airdrop_signal * 4 * cryptoContext +
+    item.research_signal * 3 * cryptoContext +
     item.bio_tool_signal * 4 +
     item.community_signal * 10 +              // Private TG/Discord — heavily rewarded
     item.recent_topic_signal * 5 +
     Math.min(12, Math.round(item.avg_engagement / 15))
-  const penalty = item.sports_penalty * 10 + item.stock_penalty * 8
+  // Stock-trader terms are expected for tokenized-stock KOLs, so don't penalise them there.
+  const stockPenalty = item.track_hits.tokenized_stock > 0 ? 0 : item.stock_penalty * 8
+  const penalty = item.sports_penalty * 10 + stockPenalty
   return Math.max(0, positive - penalty)
 }
 
@@ -470,16 +462,13 @@ async function annotateExistingKols(results: DiscoveryResult[]) {
   return results
 }
 
-async function fallbackDbResults(keywords: string[], minFollowers: number, _timeRange: number): Promise<DiscoveryResult[]> {
+async function fallbackDbResults(
+  keywords: string[],
+  minFollowers: number,
+  tracks: Track[],
+  includeBrand: boolean,
+): Promise<DiscoveryResult[]> {
   const cleanKeywords = keywords.map((k) => k.trim()).filter(Boolean)
-  const pmRelated = cleanKeywords.some((k) => {
-    const norm = normalizeKeyword(k)
-    return (
-      norm.includes('predict') || norm.includes('poly') || norm.includes('kalshi') ||
-      norm.includes('myriad') || norm.includes('limitless') || norm.includes('manifold') ||
-      norm.includes('forecast') || norm.includes('event')
-    )
-  })
 
   // Build OR clauses: literal bio/handle/name match…
   const clauses = cleanKeywords.flatMap((keyword) => [
@@ -487,31 +476,27 @@ async function fallbackDbResults(keywords: string[], minFollowers: number, _time
     `display_name.ilike.%${keyword}%`,
     `bio.ilike.%${keyword}%`,
   ])
-  // …plus: for PM-related searches, also surface KOLs we've already classified as PM,
-  // even if the keyword text isn't in their bio (they're the intended audience).
-  if (pmRelated) {
-    clauses.push('pm_brand_signal.gte.1', 'airdrop_signal.gte.1', 'pm_tweet_signal.gte.1')
+  // …plus: KOLs already tagged with a selected track, even if the keyword text isn't in their bio.
+  if (tracks.length > 0) {
+    clauses.push(`tracks.ov.{${tracks.join(',')}}`)
   }
 
   if (clauses.length === 0) return []
 
   // Do NOT filter by last_post_at — many KOLs haven't had refresh-stats run yet
   // and would be excluded even though they're valid candidates.
-  const { data } = await supabase
+  let query = supabase
     .from('kols_with_computed')
     .select('*')
     .or(clauses.join(','))
+    .not('x_handle', 'like', '__competitor__%')
     .gte('followers_count', minFollowers)
     .limit(150)
+  if (!includeBrand) query = query.neq('account_type', 'brand')
+
+  const { data } = await query
 
   return (data ?? [])
-    .filter((item) => !isLikelyProjectAccount({
-      screen_name: item.x_handle,
-      name: item.display_name ?? item.x_handle,
-      description: item.bio ?? '',
-      followers_count: item.followers_count ?? 0,
-      following_count: item.following_count ?? 0,
-    }, keywords))
     .map((item) => {
       const result = baseResultFromUser({
         id: item.id,
@@ -522,29 +507,41 @@ async function fallbackDbResults(keywords: string[], minFollowers: number, _time
         followers_count: item.followers_count ?? 0,
         following_count: item.following_count ?? 0,
         statuses_count: item.posts_count ?? 0,
-      })
+      }, keywords)
       result.already_in_db = true
       result.avg_engagement = item.avg_engagement_rate ?? 0
+      if (item.account_type) result.account_type = item.account_type
       scoreBioAndIdentity(result, `${result.display_name}\n${result.bio}`)
-      result.relevance_score = computeRelevance(result)
+      for (const t of (item.tracks ?? []) as Track[]) {
+        if (isTrack(t) && !result.tracks.includes(t)) result.tracks.push(t)
+      }
+      result.relevance_score = computeRelevance(result, tracks)
       return result
     })
 }
 
 export async function POST(req: NextRequest) {
-  const { keywords, min_followers = 1000, time_range = 30 }: {
-    keywords: string[]
+  const body: {
+    keywords?: string[]
+    tracks?: string[]
+    include_brand?: boolean
     min_followers?: number
     time_range?: number
   } = await req.json()
+  const { min_followers = 1000, time_range = 30, include_brand = true } = body
+  const tracks = (body.tracks ?? []).filter(isTrack)
+  const typedKeywords = (body.keywords ?? []).map((keyword) => keyword.trim()).filter(Boolean)
 
-  if (!keywords || keywords.length === 0) {
-    return NextResponse.json({ error: '请输入关键词' }, { status: 400 })
+  if (typedKeywords.length === 0 && tracks.length === 0) {
+    return NextResponse.json({ error: '请输入关键词或选择赛道' }, { status: 400 })
   }
 
   try {
-    const originalKeywords = keywords.map((keyword) => keyword.trim()).filter(Boolean)
-    const cacheKey = makeCacheKey(originalKeywords, min_followers, time_range)
+    // No typed keywords → search with each selected track's seed terms.
+    const originalKeywords = typedKeywords.length > 0
+      ? typedKeywords
+      : [...new Set(tracks.flatMap((t) => TRACKS[t].seeds))].slice(0, 5)
+    const cacheKey = makeCacheKey(originalKeywords, min_followers, time_range, tracks, include_brand)
     const hotCache = discoverCache.get(cacheKey)
     if (hotCache && hotCache.expiresAt >= Date.now()) {
       return NextResponse.json({
@@ -558,9 +555,8 @@ export async function POST(req: NextRequest) {
 
     for (const user of await fallbackUsersForTerms(originalKeywords)) {
       if (!user || user.followers_count < min_followers) continue
-      if (isLikelyProjectAccount(user, originalKeywords)) continue
 
-      const result = baseResultFromUser(user)
+      const result = baseResultFromUser(user, originalKeywords)
       result.keyword_post_count += 2
       scoreBioAndIdentity(result, `${result.display_name}\n${result.bio}`)
       seen.set(user.id, result)
@@ -573,9 +569,8 @@ export async function POST(req: NextRequest) {
         for (const handle of handles) {
           const user = await fetchXUserByHandle(handle)
           if (!user || user.followers_count < min_followers) continue
-          if (isLikelyProjectAccount(user, originalKeywords)) continue
 
-          const current = seen.get(user.id) ?? baseResultFromUser(user)
+          const current = seen.get(user.id) ?? baseResultFromUser(user, originalKeywords)
           current.keyword_post_count += 1
           scoreBioAndIdentity(current, `${current.display_name}\n${current.bio}\n${keyword}`)
           seen.set(user.id, current)
@@ -594,8 +589,7 @@ export async function POST(req: NextRequest) {
 
       for (const user of users) {
         if (user.followers_count < min_followers) continue
-        if (isLikelyProjectAccount(user, originalKeywords)) continue
-        const current = seen.get(user.id) ?? baseResultFromUser(user)
+        const current = seen.get(user.id) ?? baseResultFromUser(user, originalKeywords)
         current.keyword_post_count += 2
         scoreBioAndIdentity(current, `${current.display_name}\n${current.bio}\n${term}`)
         seen.set(user.id, current)
@@ -611,11 +605,11 @@ export async function POST(req: NextRequest) {
         const user = tweet.user
         if (!user) continue
         if (user.followers_count < min_followers) continue
-        if (isLikelyProjectAccount(user, originalKeywords)) continue
-        const current = seen.get(user.id) ?? baseResultFromUser(user)
+        const current = seen.get(user.id) ?? baseResultFromUser(user, originalKeywords)
         current.keyword_post_count += 1
-        const topicHits = countMatches(tweet.text, CORE_PM_TERMS) + countMatches(tweet.text, TRADER_TERMS) + countMatches(tweet.text, RESEARCH_TERMS)
-        current.prediction_market_signal += topicHits
+        addTrackHits(current, tweet.text)
+        const topicHits = selectedTrackHits(tweet.text, tracks) + countMatches(tweet.text, RESEARCH_TERMS)
+        current.topic_signal += topicHits
         current.recent_topic_signal += topicHits > 0 ? 1 : 0
         current.avg_engagement = Math.max(current.avg_engagement, tweet.favorite_count + tweet.retweet_count + tweet.reply_count)
         seen.set(user.id, current)
@@ -633,28 +627,19 @@ export async function POST(req: NextRequest) {
     await expandFromDbKols(originalKeywords, min_followers, seen)
 
     const list = [...seen.values()]
-      .sort((a, b) => (b.keyword_post_count + b.prediction_market_signal) - (a.keyword_post_count + a.prediction_market_signal))
+      .sort((a, b) => (b.keyword_post_count + b.topic_signal) - (a.keyword_post_count + a.topic_signal))
 
     // Enrich top candidates — serial with delays to avoid rate limits
     for (const item of list.slice(0, ENRICH_CANDIDATE_LIMIT)) {
       try {
         await delay(REQUEST_DELAY_MS)
         const tweets = await getTwikitUserTweets(item.twitter_id, 10)
-        const relevantTweets = tweets.filter((tweet) => {
-          const topicHits =
-            countMatches(tweet.text, CORE_PM_TERMS) +
-            countMatches(tweet.text, TRADER_TERMS) +
-            countMatches(tweet.text, RESEARCH_TERMS)
-          return topicHits > 0
-        })
+        const topicHitsOf = (text: string) => selectedTrackHits(text, tracks) + countMatches(text, RESEARCH_TERMS)
+        const relevantTweets = tweets.filter((tweet) => topicHitsOf(tweet.text) > 0)
+        for (const tweet of tweets) addTrackHits(item, tweet.text)
         item.recent_topic_signal += relevantTweets.length
         item.avg_engagement = Math.max(item.avg_engagement, averageEngagement(relevantTweets.length > 0 ? relevantTweets : tweets))
-        item.prediction_market_signal += relevantTweets.reduce((sum, tweet) => {
-          return sum +
-            countMatches(tweet.text, CORE_PM_TERMS) +
-            countMatches(tweet.text, TRADER_TERMS) +
-            countMatches(tweet.text, RESEARCH_TERMS)
-        }, 0)
+        item.topic_signal += relevantTweets.reduce((sum, tweet) => sum + topicHitsOf(tweet.text), 0)
       } catch {
         // Skip enrichment on error, don't mark as rate limited
       }
@@ -666,20 +651,28 @@ export async function POST(req: NextRequest) {
     ])
 
     for (const item of list) {
-      item.relevance_score = computeRelevance(item)
+      item.relevance_score = computeRelevance(item, tracks)
       item.profile_score = scoreKolProfile(item, profileStats)
     }
 
     const results = list
+      .filter((item) => include_brand || item.account_type !== 'brand')
       // ICP rule: private TG/Discord community bypasses the generic profile-quality threshold
-      // (a PM-adjacent account with a TG group is a MUST-KEEP even if its bio is thin).
-      .filter((item) => item.community_signal >= 1 || item.profile_score >= PROFILE_SCORE_THRESHOLD)
+      // (a crypto KOL with a TG group is a MUST-KEEP even if its bio is thin).
+      // Brand accounts are scored down by the profile heuristic by design, so they skip it too.
+      .filter((item) =>
+        item.community_signal >= 1 ||
+        item.account_type === 'brand' ||
+        item.profile_score >= PROFILE_SCORE_THRESHOLD
+      )
+      // Track filter: when 赛道 are selected, keep only KOLs that hit at least one of them.
+      .filter((item) => tracks.length === 0 || item.tracks.some((t) => tracks.includes(t)))
       .filter((item) => !rejectedHandles.has(item.x_handle))
-      // Hard block: obvious sports betting or stock trader with ZERO PM context (brand OR airdrop) — NOT our ICP.
+      // Hard block: obvious sports betting or stock trader with ZERO crypto-track context — NOT our ICP.
       // Community link does NOT bypass this — an NFL parlays handicapper with a Telegram is still noise.
       .filter((item) => !(
         (item.sports_penalty >= 2 || item.stock_penalty >= 2) &&
-        item.pm_brand_signal === 0 &&
+        item.tracks.length === 0 &&
         item.airdrop_signal === 0
       ))
       .sort((a, b) => {
@@ -699,7 +692,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(payload)
     }
 
-    const fallbackResults = await fallbackDbResults(originalKeywords, min_followers, time_range)
+    const fallbackResults = await fallbackDbResults(typedKeywords, min_followers, tracks, include_brand)
     const staleCache = getCachedDiscoverResponse(cacheKey)
     if (rateLimited && staleCache && staleCache.results.length > 0) {
       await annotateExistingKols(staleCache.results)

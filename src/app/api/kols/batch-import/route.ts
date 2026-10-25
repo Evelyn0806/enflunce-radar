@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { computeTier, detectLanguage } from '@/lib/utils'
 import { getTwikitUser, TwikitUser } from '@/lib/twikit'
 import { fetchXUsersByHandles } from '@/lib/x-api-fallback'
-import { CORE_PM_TERMS, PM_AIRDROP_TERMS, countMatches } from '@/lib/discover-profile'
+import { classifyProfile } from '@/lib/tracks'
 
 async function fetchUsersByHandles(handles: string[]) {
   const users = await Promise.all(
@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
   const users = await fetchUsersByHandles(handles)
 
   const rows = users.map((u) => {
-    const scoringText = `${u.name ?? ''}\n${u.description ?? ''}`
     return {
       x_handle: u.screen_name.toLowerCase(),
       display_name: u.name,
@@ -47,8 +46,7 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       status_flag: 'none',
       language: detectLanguage(u.description ?? null, u.name),
-      pm_brand_signal: countMatches(scoringText, CORE_PM_TERMS),
-      airdrop_signal: countMatches(scoringText, PM_AIRDROP_TERMS),
+      ...classifyProfile(u.screen_name, u.name, u.description ?? null),
     }
   })
 

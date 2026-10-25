@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { computeTier } from '@/lib/utils'
-import { CORE_PM_TERMS, PM_AIRDROP_TERMS, countMatches } from '@/lib/discover-profile'
+import { classifyProfile } from '@/lib/tracks'
+import { AccountType, Track, isTrack } from '@/lib/tracks'
 import { Language, StatusFlag, KolStatus } from '@/types'
 
 interface ImportPayload {
@@ -17,6 +18,9 @@ interface ImportPayload {
   status: KolStatus
   notes?: string | null
   competitor_affiliations?: string[] | null
+  // From discovery: tracks also seen in recent tweets, and the operator-visible account type
+  tracks?: Track[]
+  account_type?: AccountType
 }
 
 // POST /api/kols/import — bulk import from discovery results
@@ -28,7 +32,8 @@ export async function POST(req: NextRequest) {
   }
 
   const rows = kols.map((k) => {
-    const scoringText = `${k.display_name ?? ''}\n${k.bio ?? ''}`
+    const classification = classifyProfile(k.x_handle, k.display_name, k.bio)
+    const tracks = [...new Set([...classification.tracks, ...(k.tracks ?? []).filter(isTrack)])]
     return {
       x_handle: k.x_handle.toLowerCase(),
       display_name: k.display_name,
@@ -43,8 +48,8 @@ export async function POST(req: NextRequest) {
       status_flag: k.status_flag,
       notes: k.notes ?? null,
       competitor_affiliations: k.competitor_affiliations ?? null,
-      pm_brand_signal: countMatches(scoringText, CORE_PM_TERMS),
-      airdrop_signal: countMatches(scoringText, PM_AIRDROP_TERMS),
+      tracks,
+      account_type: k.account_type ?? classification.account_type,
     }
   })
 

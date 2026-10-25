@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { DiscoveryResult } from '@/app/api/discover/route'
 import { formatNumber } from '@/lib/utils'
 import { Language, StatusFlag, KolStatus } from '@/types'
+import { ACCOUNT_TYPE_CONFIG, ALL_TRACKS, TRACKS, Track } from '@/lib/tracks'
 
 const FLAG_OPTIONS: { value: StatusFlag; icon: string; label: string; status: KolStatus }[] = [
   { value: 'none',   icon: '—',  label: '待处理',  status: 'pending' },
@@ -38,6 +39,8 @@ export default function DiscoverClient() {
   const router = useRouter()
   const [keywords, setKeywords] = useState<string[]>([])
   const [kwInput, setKwInput] = useState('')
+  const [tracks, setTracks] = useState<Track[]>([])
+  const [includeBrand, setIncludeBrand] = useState(true)
   const [minFollowers, setMinFollowers] = useState(1500)
   const [timeRange, setTimeRange] = useState(30)
   const [loading, setLoading] = useState(false)
@@ -64,8 +67,12 @@ export default function DiscoverClient() {
     })
   }
 
+  function toggleTrack(t: Track) {
+    setTracks((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
+  }
+
   async function search() {
-    if (keywords.length === 0) return
+    if (keywords.length === 0 && tracks.length === 0) return
     setLoading(true)
     setError('')
     setResults([])
@@ -73,7 +80,7 @@ export default function DiscoverClient() {
     const res = await fetch('/api/discover', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keywords, min_followers: minFollowers, time_range: timeRange }),
+      body: JSON.stringify({ keywords, tracks, include_brand: includeBrand, min_followers: minFollowers, time_range: timeRange }),
     })
 
     const json = await res.json()
@@ -125,6 +132,8 @@ export default function DiscoverClient() {
           language: rs.language,
           status_flag: rs.flag,
           status: flagOpt.status,
+          tracks: r.tracks,
+          account_type: r.account_type,
         }
       })
 
@@ -162,7 +171,7 @@ export default function DiscoverClient() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>KOL 发现</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-          输入关键词，AI 画像评分过滤项目方，精准锁定 KOL / KOC
+          选择 Crypto 赛道或输入关键词，画像评分 + 赛道识别，精准锁定 KOL / KOC
         </p>
       </div>
 
@@ -170,7 +179,33 @@ export default function DiscoverClient() {
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
-            关键词（至少一个）
+            赛道（可多选，不选则不限）
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ALL_TRACKS.map((t) => {
+              const active = tracks.includes(t)
+              return (
+                <button
+                  key={t}
+                  onClick={() => toggleTrack(t)}
+                  style={{
+                    padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                    border: active ? '1px solid #6366f1' : '1px solid #e2e8f0',
+                    background: active ? '#eef2ff' : '#fff',
+                    color: active ? '#4338ca' : '#475569',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {TRACKS[t].label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
+            关键词（选了赛道可留空，自动用赛道种子词搜索）
           </label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {keywords.map((kw) => (
@@ -218,10 +253,14 @@ export default function DiscoverClient() {
               <option value={50000}>50,000+</option>
             </select>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#64748b', cursor: 'pointer', paddingBottom: 8 }}>
+            <input type="checkbox" checked={includeBrand} onChange={(e) => setIncludeBrand(e.target.checked)} />
+            包含品牌型账号
+          </label>
           <button
             className="btn btn-primary"
             onClick={search}
-            disabled={loading || keywords.length === 0}
+            disabled={loading || (keywords.length === 0 && tracks.length === 0)}
             style={{ alignSelf: 'flex-end' }}
           >
             {loading ? '搜索中...' : '🔍 搜索 KOL'}
@@ -303,6 +342,22 @@ export default function DiscoverClient() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Tracks + account type */}
+                  {(r.tracks.length > 0 || r.account_type === 'brand') && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                      {r.account_type === 'brand' && (
+                        <span className={`badge ${ACCOUNT_TYPE_CONFIG.brand.color}`} style={{ fontSize: 10, padding: '1px 6px' }}>
+                          {ACCOUNT_TYPE_CONFIG.brand.label}
+                        </span>
+                      )}
+                      {r.tracks.map((t) => (
+                        <span key={t} className={`badge ${TRACKS[t].color}`} style={{ fontSize: 10, padding: '1px 6px' }}>
+                          {TRACKS[t].label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Bio */}
                   {r.bio && (
@@ -397,8 +452,8 @@ export default function DiscoverClient() {
       {!loading && results.length === 0 && (
         <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
           <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>🔍</div>
-          <div style={{ fontSize: 14 }}>输入关键词开始发现 KOL</div>
-          <div style={{ fontSize: 12, marginTop: 6, color: '#cbd5e1' }}>支持多关键词组合 · AI 画像评分自动过滤项目方</div>
+          <div style={{ fontSize: 14 }}>选择赛道或输入关键词开始发现 KOL</div>
+          <div style={{ fontSize: 12, marginTop: 6, color: '#cbd5e1' }}>支持多赛道 + 多关键词组合 · 品牌型账号单独标记</div>
         </div>
       )}
     </div>

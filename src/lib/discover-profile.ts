@@ -152,7 +152,8 @@ export const PM_AIRDROP_TERMS = [
   '预留',
 ]
 
-// Stock/crypto trader accounts — also NOT prediction markets.
+// Traditional stock/options trader accounts with no crypto angle — not our audience.
+// (Tokenized-stock KOLs are exempt: see the tokenized_stock track.)
 export const STOCK_BLOCK_TERMS = [
   'stocks trader',
   'options trader',
@@ -166,9 +167,6 @@ export const STOCK_BLOCK_TERMS = [
   'stock picks',
   'penny stocks',
   'swing trader',
-  'shitcoin',
-  'memecoin',
-  'defi degen',
 ]
 
 export const COMMUNITY_TERMS = [
@@ -316,4 +314,29 @@ export function fallbackHandlesForKeywords(keywords: string[]) {
 export function countMatches(text: string, terms: string[]) {
   const lower = text.toLowerCase()
   return terms.reduce((sum, term) => sum + (lower.includes(term) ? 1 : 0), 0)
+}
+
+// Brand-type accounts (project / exchange / media / official handles) vs individual KOLs.
+// Brand accounts are kept as 品牌型 KOL instead of being dropped from discovery.
+export function isLikelyBrandAccount(
+  user: { screen_name: string; name: string; description: string },
+  originalKeywords: string[] = []
+) {
+  const text = `${user.name}\n${user.description}`.toLowerCase()
+  const handle = user.screen_name.toLowerCase()
+  const name = user.name.toLowerCase()
+  const projectSignal = countMatches(text, PROJECT_BLOCK_TERMS)
+  const personalSignal = countMatches(text, PERSONAL_MARKERS)
+  const orgHandleSignal = /app|labs|official|team|news|intel|dev|sport|sports|fc|money|analytics|zone|bot|terminal|market(s)?$/.test(handle)
+  const looksOrgByName = /official|analytics|news|developers|sports|money|terminal|bot|app|market/.test(name)
+  const brandLead = originalKeywords.some((keyword) => {
+    const normalized = normalizeKeyword(keyword)
+    return normalized.length >= 4 && handle.startsWith(normalized)
+  })
+
+  if (personalSignal > 0 && projectSignal === 0 && !orgHandleSignal && !brandLead) return false
+  if (brandLead && personalSignal === 0) return true
+  if (projectSignal >= 2 && personalSignal === 0) return true
+  if ((orgHandleSignal || looksOrgByName) && projectSignal >= 1) return true
+  return false
 }

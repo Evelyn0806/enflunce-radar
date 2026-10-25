@@ -1,14 +1,16 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { KolStatus, KolType, Language, Tier } from '@/types'
+import { KolStatus, Language, Tier } from '@/types'
+import { ACCOUNT_TYPE_CONFIG, ALL_TRACKS, AccountType, TRACKS, Track } from '@/lib/tracks'
 
 interface Props {
   params: {
     status?: KolStatus
     language?: Language
     tier?: Tier
-    kol_type?: KolType
+    track?: Track
+    account_type?: AccountType
     flag?: string
     q?: string
     silent?: string
@@ -80,17 +82,28 @@ export default function KolFilters({ params }: Props) {
         <option value="C">KOC（&lt;5K）</option>
       </select>
 
-      {/* KOL Type */}
+      {/* Track */}
       <select
         className="select"
-        value={params.kol_type ?? ''}
-        onChange={(e) => update('kol_type', e.target.value)}
+        value={params.track ?? ''}
+        onChange={(e) => update('track', e.target.value)}
       >
-        <option value="">全部类型</option>
-        <option value="pm_trader">PM Trader</option>
-        <option value="pm_airdrop">PM 撸毛</option>
-        <option value="pm_generalist">非专业 PM KOL</option>
-        <option value="unclassified">未分类</option>
+        <option value="">全部赛道</option>
+        {ALL_TRACKS.map((t) => (
+          <option key={t} value={t}>{TRACKS[t].label}</option>
+        ))}
+      </select>
+
+      {/* Account type */}
+      <select
+        className="select"
+        value={params.account_type ?? ''}
+        onChange={(e) => update('account_type', e.target.value)}
+      >
+        <option value="">全部账号类型</option>
+        {(Object.keys(ACCOUNT_TYPE_CONFIG) as AccountType[]).map((a) => (
+          <option key={a} value={a}>{ACCOUNT_TYPE_CONFIG[a].label}</option>
+        ))}
       </select>
 
       {/* Flag */}

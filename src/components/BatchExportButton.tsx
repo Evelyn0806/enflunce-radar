@@ -1,6 +1,7 @@
 'use client'
 
-import { Kol, KOL_TYPE_CONFIG, LANGUAGE_CONFIG, STATUS_CONFIG, TIER_CONFIG } from '@/types'
+import { Kol, LANGUAGE_CONFIG, STATUS_CONFIG, TIER_CONFIG } from '@/types'
+import { ACCOUNT_TYPE_CONFIG, TRACKS, isTrack } from '@/lib/tracks'
 
 interface Props { kols: Kol[] }
 
@@ -19,29 +20,25 @@ export default function BatchExportButton({ kols }: Props) {
   function handleExport() {
     const headers = [
       'x_handle', 'display_name', 'language', 'tier', 'tier_label',
-      'kol_type', 'kol_type_label',
+      'tracks', 'track_labels', 'account_type',
       'followers_count', 'following_count', 'posts_count',
       'avg_engagement_rate', 'last_post_at',
       'has_private_community', 'community_platforms', 'community_links',
-      'pm_brand_signal', 'airdrop_signal', 'pm_tweet_signal',
       'status', 'status_flag', 'notes',
       'competitor_affiliations', 'bio', 'created_at',
     ]
     const rows = kols.map((k) => {
       const tier = k.computed_tier ?? k.tier
-      const kolType = k.kol_type ??
-        ((k.airdrop_signal ?? 0) >= 1 ? 'pm_airdrop'
-          : (k.pm_brand_signal ?? 0) >= 1 ? 'pm_trader'
-            : (k.pm_tweet_signal ?? 0) >= 1 ? 'pm_generalist'
-              : 'unclassified')
+      const tracks = (k.tracks ?? []).filter(isTrack)
       return [
         k.x_handle,
         k.display_name,
         LANGUAGE_CONFIG[k.language]?.label ?? k.language,
         tier,
         TIER_CONFIG[tier]?.label ?? '',
-        kolType,
-        KOL_TYPE_CONFIG[kolType]?.label ?? '',
+        tracks,
+        tracks.map((t) => TRACKS[t].label),
+        ACCOUNT_TYPE_CONFIG[k.account_type ?? 'personal']?.label ?? '',
         k.followers_count,
         k.following_count,
         k.posts_count,
@@ -50,9 +47,6 @@ export default function BatchExportButton({ kols }: Props) {
         k.has_private_community,
         k.community_platforms,
         k.community_links,
-        k.pm_brand_signal ?? 0,
-        k.airdrop_signal ?? 0,
-        k.pm_tweet_signal ?? 0,
         STATUS_CONFIG[k.status]?.labelZh ?? k.status,
         k.status_flag,
         k.notes,

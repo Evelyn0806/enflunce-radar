@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { clampEngagementRate } from '@/lib/utils'
 import { getTwikitUser, getTwikitUserTweets } from '@/lib/twikit'
 import { fetchXRecentTweetsByHandle, fetchXUserByHandle } from '@/lib/x-api-fallback'
-import { CORE_PM_TERMS, countMatches } from '@/lib/discover-profile'
+import { classifyProfile, detectTracks } from '@/lib/tracks'
 
 export async function POST(req: NextRequest) {
   const { kol_ids }: { kol_ids: string[] } = await req.json()
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       // Get KOL info
       const { data: kol } = await supabase
         .from('kols')
-        .select('id, x_handle, followers_count')
+        .select('id, x_handle, display_name, bio, followers_count')
         .eq('id', kolId)
         .single()
 
@@ -44,18 +44,14 @@ export async function POST(req: NextRequest) {
       }
       if (!tweets || tweets.length === 0) continue
 
-      // Calculate avg engagement rate + count PM brand hits across recent tweets
+      // Calculate avg engagement rate + re-detect 赛道 from the current bio and recent tweets
       let totalEngagement = 0
       let lastPostAt = null
-      let pmTweetSignal = 0
-      // Scan the 5 most recent tweets for PM brand mentions → "非专业 PM KOL" classification.
-      const recent5 = [...tweets]
-        .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
-        .slice(0, 5)
-      const seenPmTermTweetCount = recent5.reduce((count, t) => {
-        return count + (countMatches(t.text ?? '', CORE_PM_TERMS) > 0 ? 1 : 0)
-      }, 0)
-      pmTweetSignal = seenPmTermTweetCount
+      const bio = user?.description ?? kol.bio
+      const name = user?.name ?? kol.display_name
+      const classification = classifyProfile(kol.x_handle, name, bio)
+      const tweetTracks = detectTracks(tweets.map((t) => t.text ?? '').join('\n'))
+      const tracks = [...new Set([...classification.tracks, ...tweetTracks])]
 
       for (const tweet of tweets) {
         const engagement = tweet.favorite_count + tweet.retweet_count + tweet.reply_count
@@ -76,7 +72,8 @@ export async function POST(req: NextRequest) {
         .update({
           avg_engagement_rate: engagementRate,
           last_post_at: lastPostAt,
-          pm_tweet_signal: pmTweetSignal,
+          tracks,
+          account_type: classification.account_type,
         })
         .eq('id', kolId)
 

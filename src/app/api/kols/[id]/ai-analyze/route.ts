@@ -44,7 +44,7 @@ export async function POST(
     ...(baseURL && { baseURL })
   })
 
-  const prompt = `You are an expert KOL analyst for a prediction market platform (Polymarket-like). Analyze this crypto KOL on X (Twitter).
+  const prompt = `You are an expert KOL analyst for a crypto growth team (tracks: prediction markets, tokenized stocks, DeFi, memecoins, AI agents, trading/perps). Analyze this crypto KOL on X (Twitter).
 
 KOL Profile:
 - Handle: @${kol.x_handle}
@@ -56,6 +56,8 @@ KOL Profile:
 - Language: ${kol.language}
 - Engagement Rate: ${kol.avg_engagement_rate != null ? kol.avg_engagement_rate + '%' : 'Unknown'}
 - Has Private Community: ${kol.has_private_community ? 'Yes' : 'No'}
+- Detected Tracks: ${(kol.tracks ?? []).join(', ') || 'none'}
+- Account Type: ${kol.account_type === 'brand' ? 'brand / project account' : 'individual'}
 
 Available roles: ${ROLES.map((r) => `${r} (${ROLE_DESCRIPTIONS[r]})`).join(', ')}
 
@@ -65,7 +67,7 @@ Tasks:
 3. Write a 2-3 sentence summary (in the same language as the KOL's primary language)
 4. Determine content style: one of "educational", "entertainment", "data-driven", "news", "opinion", "mixed"
 5. Describe target audience in 1 sentence (demographics, interests, crypto experience level)
-6. Rate collaboration value 1-10 (10 = highest value for prediction market partnership)
+6. Rate collaboration value 1-10 (10 = highest value for a crypto project partnership in the KOL's tracks)
 7. Suggest the best collaboration type: one of "sponsored_post", "ambassador", "content_series", "community_collab", "event_host", "data_partnership"
 8. Brief analysis notes explaining your reasoning
 

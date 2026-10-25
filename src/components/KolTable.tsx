@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Kol, STATUS_CONFIG, FLAG_CONFIG, LANGUAGE_CONFIG, TIER_CONFIG, KOL_TYPE_CONFIG, KolType } from '@/types'
+import { Kol, STATUS_CONFIG, FLAG_CONFIG, LANGUAGE_CONFIG, TIER_CONFIG } from '@/types'
+import { ACCOUNT_TYPE_CONFIG, TRACKS, isTrack } from '@/lib/tracks'
 import { formatNumber } from '@/lib/utils'
 
 interface Props { kols: Kol[] }
@@ -76,7 +77,7 @@ export default function KolTable({ kols }: Props) {
             <th>KOL / Handle</th>
             <th>语区</th>
             <th>Tier</th>
-            <th>类型</th>
+            <th>赛道</th>
             <th>粉丝数</th>
             <th>私域</th>
             <th>状态</th>
@@ -152,29 +153,28 @@ export default function KolTable({ kols }: Props) {
                   </span>
                 </td>
 
-                {/* Type — PM Trader / PM 撸毛 / 非专业 PM KOL / 未分类
+                {/* Tracks (multi) + 品牌型 marker.
                     Dead accounts: classification was computed from stale bio → suppress. */}
                 <td>
                   {isDead ? (
                     <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
-                  ) : (() => {
-                    const kolType: KolType =
-                      kol.kol_type ??
-                      ((kol.airdrop_signal ?? 0) >= 1 ? 'pm_airdrop'
-                        : (kol.pm_brand_signal ?? 0) >= 1 ? 'pm_trader'
-                          : (kol.pm_tweet_signal ?? 0) >= 1 ? 'pm_generalist'
-                            : 'unclassified')
-                    const cfg = KOL_TYPE_CONFIG[kolType]
-                    return (
-                      <span
-                        className={`badge ${cfg.color}`}
-                        style={{ fontSize: 11, padding: '2px 6px' }}
-                        title={`bio_brand=${kol.pm_brand_signal ?? 0}, airdrop=${kol.airdrop_signal ?? 0}, tweet_pm=${kol.pm_tweet_signal ?? 0}`}
-                      >
-                        {cfg.label}
-                      </span>
-                    )
-                  })()}
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 220 }}>
+                      {kol.account_type === 'brand' && (
+                        <span className={`badge ${ACCOUNT_TYPE_CONFIG.brand.color}`} style={{ fontSize: 11, padding: '2px 6px' }}>
+                          {ACCOUNT_TYPE_CONFIG.brand.label}
+                        </span>
+                      )}
+                      {(kol.tracks ?? []).filter(isTrack).map((t) => (
+                        <span key={t} className={`badge ${TRACKS[t].color}`} style={{ fontSize: 11, padding: '2px 6px' }}>
+                          {TRACKS[t].label}
+                        </span>
+                      ))}
+                      {(kol.tracks ?? []).length === 0 && kol.account_type !== 'brand' && (
+                        <span className="badge bg-gray-100 text-gray-500" style={{ fontSize: 11, padding: '2px 6px' }}>未分类</span>
+                      )}
+                    </div>
+                  )}
                 </td>
 
                 {/* Followers */}
