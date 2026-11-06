@@ -1,0 +1,1610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Maker Legal: an in-house legal AI workspace prototype by AI Maker House.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Maker Legal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&family=Noto+Serif+SC:wght@400;600;700&display=swap">
+<style>
+/* Layout: brand header + left rail (stacks to top tabs on phones); each module is one working screen. AI Maker House palette. */
+:root{
+  --brand-black:#111111; --brand-orange:#F7941E; --brand-red:#E85D2A; --brand-brown:#7A3218;
+  --bg:#F8F6F2; --glow:#F8E2DA; --grid:rgba(30,20,10,.035);
+  --surface:#FFFFFF; --surface-2:#FFF3EA; --sunken:#F3EFEA;
+  --ink:#0E0E0C; --muted:#6B655F; --faint:#99918A; --line:#EAE3DB; --line-strong:#D8CEC4;
+  --accent:#E5602E; --accent-ink:#B4441A; --rust:#BA4B38;
+  --btn:#0E0E0C; --btn-ink:#FFFFFF;
+  --crit:#C1302A; --crit-bg:#FCE7E4; --high:#C95A16; --high-bg:#FDEDE0; --med:#946B00; --med-bg:#FAF1D6;
+  --ok:#2C7650; --ok-bg:#E3F2E8; --info:#36659C; --info-bg:#E5EDF7; --none:#8A837C; --none-bg:#F1EDE8;
+  --f-display:"Times New Roman",Times,Tinos,"Noto Serif SC","Songti SC",SimSun,serif;
+  --f-body:"Times New Roman",Times,Tinos,"Noto Serif SC","Songti SC",SimSun,serif;
+  --f-mono:"Times New Roman",Times,Tinos,"Noto Serif SC","Songti SC",SimSun,serif;
+  --r:12px; --r-sm:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121110; --glow:#3A2017; --grid:rgba(255,240,230,.035);
+  --surface:#1B1816; --surface-2:#2A1D16; --sunken:#171513;
+  --ink:#F4EFE9; --muted:#AAA198; --faint:#7C746D; --line:#2D2824; --line-strong:#3E3631;
+  --accent:#F27A47; --accent-ink:#F79A70; --rust:#DA7562;
+  --btn:#F4EFE9; --btn-ink:#121110;
+  --crit:#F2766E; --crit-bg:#3B1A18; --high:#F09A5B; --high-bg:#3A2314; --med:#E2BF55; --med-bg:#33290F;
+  --ok:#64C190; --ok-bg:#14301F; --info:#86AEDF; --info-bg:#182538; --none:#8F8780; --none-bg:#24201D;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121110; --glow:#3A2017; --grid:rgba(255,240,230,.035);
+  --surface:#1B1816; --surface-2:#2A1D16; --sunken:#171513;
+  --ink:#F4EFE9; --muted:#AAA198; --faint:#7C746D; --line:#2D2824; --line-strong:#3E3631;
+  --accent:#F27A47; --accent-ink:#F79A70; --rust:#DA7562;
+  --btn:#F4EFE9; --btn-ink:#121110;
+  --crit:#F2766E; --crit-bg:#3B1A18; --high:#F09A5B; --high-bg:#3A2314; --med:#E2BF55; --med-bg:#33290F;
+  --ok:#64C190; --ok-bg:#14301F; --info:#86AEDF; --info-bg:#182538; --none:#8F8780; --none-bg:#24201D;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  background-image:radial-gradient(900px 520px at 12% 18%,var(--glow),transparent 70%),radial-gradient(700px 480px at 92% 70%,var(--glow),transparent 70%),
+  linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:auto,auto,40px 40px,40px 40px;background-attachment:fixed;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:30px;font-weight:700;line-height:1.15}
+h2{font-size:19px;font-weight:700}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top-in{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:16px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);flex:none}
+.brand svg{width:30px;height:auto;flex:none}
+.brand b{font-family:var(--f-display);font-weight:700;font-size:17px}
+.brand .sep{width:1px;height:18px;background:var(--line-strong)}
+.brand .prod{font-weight:700;color:var(--accent)}
+.top .co{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.co-chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:10px;padding:6px 10px;background:var(--surface);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.co-chip i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.ai-chip{font-size:12px;border-radius:999px;padding:4px 10px;background:var(--none-bg);color:var(--muted);white-space:nowrap}
+.ai-chip.on{background:var(--ok-bg);color:var(--ok)}
+.lang{flex:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:10px;padding:6px 12px;font-weight:700;font-size:14px;cursor:pointer;min-width:52px}
+.lang:hover{border-color:var(--accent);color:var(--accent-ink)}
+
+/* shell */
+.shell{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:28px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 84px);align-self:start;display:flex;flex-direction:column;gap:2px}
+.rail a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:var(--muted);text-decoration:none;font-weight:500}
+.rail a:hover{background:var(--surface);color:var(--ink)}
+.rail a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.rail a .k{font-family:var(--f-mono);font-size:11px;color:var(--faint);width:18px}
+.rail a[aria-current="page"] .k{color:var(--accent)}
+.rail .badge{margin-left:auto;font-size:11px;background:var(--crit-bg);color:var(--crit);border-radius:999px;padding:0 7px;font-weight:700}
+.rail-foot{margin-top:18px;padding:12px;border-radius:10px;border:1px dashed var(--line-strong);font-size:12px;color:var(--muted)}
+main{min-width:0;display:flex;flex-direction:column;gap:20px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.page-head .lead{color:var(--muted);max-width:68ch;margin-top:6px}
+
+/* surfaces */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.grid-5-7{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px}
+.grid-8-4{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:20px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* buttons, inputs */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;background:var(--btn);color:var(--btn-ink);border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:14px}
+.btn:hover{opacity:.88}
+.btn{white-space:nowrap;flex:none}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:var(--surface);color:var(--ink);border-color:var(--line-strong)}
+.btn.accent{background:var(--accent);color:#fff}
+.btn.sm{padding:5px 10px;font-size:13px;border-radius:8px}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);font-weight:500}
+input[type=text],input[type=number],select,textarea{background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-size:14px;width:100%}
+textarea{resize:vertical;line-height:1.5}
+.seg{display:inline-flex;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:500;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-crit{background:var(--crit-bg);color:var(--crit)} .p-high{background:var(--high-bg);color:var(--high)}
+.p-med{background:var(--med-bg);color:var(--med)} .p-low,.p-info{background:var(--info-bg);color:var(--info)}
+.p-ok{background:var(--ok-bg);color:var(--ok)} .p-none{background:var(--none-bg);color:var(--none)}
+.tag{display:inline-block;border:1px solid var(--line-strong);border-radius:6px;padding:0 6px;font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num{white-space:nowrap}
+
+/* hero (brand banner motif) */
+.hero{position:relative;overflow:hidden;border-radius:16px;background:var(--brand-black);color:#F4EFE9;padding:26px 26px 22px;min-height:168px}
+.hero::before{content:"";position:absolute;inset:0;background:var(--brand-brown);clip-path:polygon(44% 0,100% 0,100% 82%,96% 70%)}
+.hero::after{content:"";position:absolute;inset:0;background:var(--brand-orange);clip-path:polygon(58% 0,100% 0,100% 64%,97% 56%)}
+.hero > *{position:relative;z-index:1}
+.hero h1{color:#fff;font-size:32px}
+.hero p{color:#CFC8C0;max-width:56ch;margin-top:8px}
+.hero .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:22px}
+.kpi{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;backdrop-filter:blur(4px)}
+.kpi .v{font-family:var(--f-display);font-size:28px;font-weight:700;color:#fff}
+.kpi .l{font-size:13px;color:#BDB5AD}
+.kpi .d{font-size:13px;margin-top:2px}
+.kpi .d.bad{color:#FFB08A} .kpi .d.good{color:#9FDCB8}
+
+/* alerts list */
+.alert{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.alert:last-child{border-bottom:0}
+.alert .bar{align-self:stretch;border-radius:4px}
+.alert .t{font-weight:700}
+.alert .s{font-size:13px;color:var(--muted)}
+
+/* bars */
+.bars{display:flex;flex-direction:column;gap:12px}
+.bar-row{display:grid;grid-template-columns:170px minmax(0,1fr) 130px;gap:10px;align-items:center;font-size:14px}
+.bar-row .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{position:relative;height:12px;background:var(--sunken);border-radius:6px;overflow:hidden}
+.bar-fill{position:absolute;inset:0 auto 0 0;border-radius:6px;background:var(--brand-orange)}
+.bar-fill.over{background:var(--crit)}
+.bar-mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+
+/* contract review */
+.doc{background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;max-height:640px;overflow:auto;font-family:var(--f-mono);font-size:14.5px;line-height:1.7;white-space:pre-wrap}
+.doc mark{background:var(--high-bg);color:inherit;border-bottom:2px solid var(--high);padding:0 1px;border-radius:2px}
+.doc mark.crit{background:var(--crit-bg);border-color:var(--crit)}
+.doc mark.flash{outline:2px solid var(--accent)}
+.finding{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.finding .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.finding .why{font-size:14px;color:var(--muted)}
+.redline{font-family:var(--f-mono);font-size:14px;background:var(--ok-bg);border-left:3px solid var(--ok);padding:8px 10px;border-radius:0 6px 6px 0;white-space:pre-wrap}
+.quote{font-family:var(--f-mono);font-size:14px;background:var(--crit-bg);padding:6px 10px;border-radius:6px;text-decoration:line-through;text-decoration-color:var(--crit);text-decoration-thickness:1px}
+.src-note{font-size:13px;border-radius:8px;padding:8px 10px;background:var(--info-bg);color:var(--info)}
+.src-note.warn{background:var(--med-bg);color:var(--med)}
+.thinking{display:flex;align-items:center;gap:10px;color:var(--muted);padding:16px 0}
+.dot3{display:inline-flex;gap:4px}.dot3 i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:b 1.2s infinite}
+.dot3 i:nth-child(2){animation-delay:.15s}.dot3 i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--sunken);color:var(--muted)}
+.step.done .n{background:var(--ok-bg);color:var(--ok)}
+.step.rej .n{background:var(--crit-bg);color:var(--crit)}
+.pb{display:grid;grid-template-columns:minmax(0,1.1fr) repeat(3,minmax(0,1fr)) auto;gap:0;font-size:13.5px}
+.pb > div{padding:8px 10px;border-bottom:1px solid var(--line)}
+.pb .h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+/* compliance matrix */
+.mx{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(4,minmax(110px,1fr));min-width:640px}
+.mx > div{border-bottom:1px solid var(--line);padding:6px}
+.mx .rh{font-weight:700;font-size:14px;display:flex;flex-direction:column;justify-content:center;padding-left:2px}
+.mx .rh small{font-weight:400;color:var(--faint);font-size:12px}
+.mx .ch{font-size:13px;font-weight:700;text-align:center;padding:8px 6px}
+.mx .ch small{display:block;font-weight:400;color:var(--faint);font-size:12px}
+.cell{width:100%;height:100%;min-height:44px;border-radius:8px;border:1px solid transparent;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding:6px 8px;text-align:left;font-size:13px;font-weight:700}
+.cell:hover{border-color:var(--line-strong)}
+.cell[aria-pressed="true"]{outline:2px solid var(--accent)}
+.cell .st{font-size:11.5px;font-weight:400;opacity:.85}
+.c-gap{background:var(--crit-bg);color:var(--crit)} .c-progress{background:var(--high-bg);color:var(--high)}
+.c-review{background:var(--med-bg);color:var(--med)} .c-ok{background:var(--ok-bg);color:var(--ok)} .c-none{background:var(--none-bg);color:var(--none)}
+.row-off{opacity:.35}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:4px}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.toggle:last-child{border-bottom:0}
+.sw{position:relative;width:36px;height:20px;flex:none;border-radius:999px;background:var(--line-strong);border:0;cursor:pointer}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"]::after{left:18px}
+.kv{display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.ai-out{white-space:pre-wrap;font-size:14px;background:var(--surface-2);border-radius:10px;padding:12px}
+
+/* intake */
+.chat{display:flex;flex-direction:column;gap:10px;max-height:460px;overflow:auto;padding:4px 2px}
+.msg{max-width:88%;padding:10px 12px;border-radius:12px;font-size:14.5px;white-space:pre-wrap}
+.msg.u{align-self:flex-end;background:var(--btn);color:var(--btn-ink);border-bottom-right-radius:4px}
+.msg.a{align-self:flex-start;background:var(--surface-2);border-bottom-left-radius:4px}
+.msg .who{display:block;font-size:11px;font-weight:700;opacity:.7;margin-bottom:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;text-align:left}
+.chip:hover{border-color:var(--accent);color:var(--accent-ink)}
+.board{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:12px;overflow-x:auto;padding-bottom:4px}
+.col{background:var(--sunken);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.col h3{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.mcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.mcard.new{border-color:var(--accent)}
+.mcard .id{font-family:var(--f-mono);font-size:12px;color:var(--faint)}
+.triage{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface-2);display:flex;flex-direction:column;gap:8px}
+
+/* counsel */
+.firm{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.firm:last-child{border-bottom:0}
+.firm .nm{font-weight:700}
+.firm .meta{font-size:13px;color:var(--muted)}
+.inv td.flag{background:var(--crit-bg)}
+.inv td.warnc{background:var(--med-bg)}
+.flags{display:flex;flex-direction:column;gap:8px}
+.flagi{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+
+/* upload */
+.drop{border:2px dashed var(--line-strong);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;background:var(--sunken)}
+.drop.over{border-color:var(--accent);background:var(--surface-2)}
+.drop .hint{font-size:13px;color:var(--muted)}
+
+/* radar */
+.upd{border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:var(--surface)}
+.upd.focus{outline:2px solid var(--accent)}
+.upd.new{border-left:4px solid var(--accent)}
+.upd .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.upd .impact{font-size:14px;background:var(--surface-2);border-radius:8px;padding:8px 10px}
+.cellchip{border:1px solid var(--line-strong);background:var(--sunken);border-radius:6px;padding:1px 8px;font-size:12px;cursor:pointer}
+.cellchip:hover{border-color:var(--accent);color:var(--accent-ink)}
+.newdot{font-size:11px;font-weight:700;color:var(--accent-ink)}
+.cell .newdot{color:inherit}
+.p-new{background:var(--high-bg);color:var(--accent-ink)}
+
+footer.disc{font-size:12.5px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;margin-top:8px}
+
+@media (max-width:1080px){.grid-5-7,.grid-8-4,.grid2{grid-template-columns:minmax(0,1fr)}.hero .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:16px;padding-block:12px 48px}
+  .rail{position:static;flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:4px}
+  .rail a{white-space:nowrap;padding:7px 10px}
+  .rail .k,.rail-foot{display:none}
+  .top .co-chip{display:none}
+  .bar-row{grid-template-columns:110px minmax(0,1fr) 100px}
+  .pb{grid-template-columns:minmax(0,1fr)}
+  .pb .h{display:none}
+  .hero{padding:20px 18px}
+  .hero::after{clip-path:polygon(70% 0,100% 0,100% 40%,97% 34%)}
+  .hero::before{clip-path:polygon(60% 0,100% 0,100% 52%,96% 46%)}
+  h1,.hero h1{font-size:25px}
+  .brand .sep,.brand b.n{display:none}
+}
+@media (max-width:420px){.ai-chip{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top"><div class="top-in">
+  <a class="brand" href="#home" id="brandLink">
+    <svg viewBox="0 0 240 180" aria-hidden="true">
+      <path fill="#F7941E" d="M0 9Q0 0 8 4L120 69L60 107C30 126 0 140 0 165Z"/>
+      <path fill="#E85D2A" d="M60 107L60 180L0 180L0 165C0 140 30 126 60 107Z"/>
+      <path fill="#F7941E" d="M240 9Q240 0 232 4L120 69L180 107C210 126 240 140 240 165Z"/>
+      <path fill="#E85D2A" d="M180 107L180 180L240 180L240 165C240 140 210 126 180 107Z"/>
+    </svg>
+    <b class="n">AI Maker House</b><span class="sep"></span><b class="prod">Maker Legal</b>
+  </a>
+  <div class="co">
+    <span class="co-chip" id="coChip"></span>
+    <span class="ai-chip" id="aiChip"></span>
+    <button class="lang" id="langBtn" type="button"></button>
+  </div>
+</div></header>
+
+<div class="shell">
+  <nav class="rail" id="rail"></nav>
+  <main id="view" tabindex="-1"></main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+/* ============ I18N ============ */
+const ls = {get(k,d){try{const v=localStorage.getItem("ml:"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem("ml:"+k,JSON.stringify(v))}catch(e){}}};
+let L = ls.get("lang","zh")==="en"?"en":"zh";
+const T = (zh,en)=> L==="en"?en:zh;
+const B = (zh,en)=>({zh,en});
+const tx = v => (v && typeof v==="object" && "zh" in v) ? v[L] : v;
+
+/* ============ DATA ============ */
+const TODAY = new Date("2026-11-02T12:00:00");
+const CO = {name:"Northbeam Talent Partners", states:["CA","NY","TX","IL"],
+  biz:B("EOR（名义雇主）+ 猎头 / 招聘","EOR (Employer of Record) + executive search"),
+  size:B("约 120 名内部员工 · 340 名美国 EOR 员工 · 37 名海外 EOR 员工","about 120 internal staff · 340 US EOR workers · 37 EOR workers abroad"),
+  tools:"It uses an AI resume-screening model (NYC Local Law 144 applies to NYC roles)."};
+
+const TYPE = {dispute:B("纠纷诉讼","Dispute"),employment:B("雇佣事务","Employment"),contract:B("合同审查","Contract"),compliance:B("合规","Compliance"),immigration:B("移民","Immigration"),general:B("一般咨询","General")};
+const DEPT = {legal:B("法务","Legal"),sales:B("销售","Sales"),recruiting:B("招聘","Recruiting"),cs:B("客户成功","Client Success"),hr:B("HR","HR"),finance:B("财务","Finance"),product:B("产品","Product")};
+const MSTATUS = {new:B("新建","New"),review:B("审查中","In review"),approval:B("待审批","Awaiting approval"),outside:B("外包处理","With outside counsel")};
+const ROLE = {ops:B("Legal Ops","Legal Ops"),sales:B("VP Sales","VP Sales"),cfo:B("CFO","CFO"),gc:B("法务负责人","General Counsel"),ceo:B("CEO","CEO")};
+const roleName = s => /general counsel|法务负责人/i.test(s)?tx(ROLE.gc):s;
+/* ---- People: every matter has a business POC (requester) and a legal POC (handler). Demo names, fictional. ---- */
+const PEOPLE = {
+ dana:{n:"Dana Whitfield",role:B("法务负责人","General Counsel"),legal:true},
+ marcus:{n:"Marcus Lee",role:B("雇佣法务","Employment counsel"),legal:true},
+ priya:{n:"Priya Raman",role:B("商务法务","Commercial counsel"),legal:true},
+ elena:{n:"Elena Park",role:B("隐私与合规法务","Privacy & compliance counsel"),legal:true},
+ sam:{n:"Sam Kowalski",role:B("法务运营","Legal Ops"),legal:true},
+ chris:{n:"Chris Nguyen",role:B("客户经理","Account executive"),dept:"sales"},
+ jordan:{n:"Jordan Blake",role:B("销售副总裁","VP Sales"),dept:"sales"},
+ taylor:{n:"Taylor Brooks",role:B("客户成功经理","Client success manager"),dept:"cs"},
+ morgan:{n:"Morgan Reyes",role:B("招聘主管","Recruiting lead"),dept:"recruiting"},
+ avery:{n:"Avery Kim",role:B("产品经理","Product manager"),dept:"product"},
+ casey:{n:"Casey Moore",role:B("首席财务官","CFO"),dept:"finance"},
+ riley:{n:"Riley Adams",role:B("薪酬运营主管","Payroll ops lead"),dept:"finance"},
+ jamie:{n:"Jamie Fox",role:B("HR 主管","HR lead"),dept:"hr"},
+ drew:{n:"Drew Collins",role:B("IT 主管","IT lead"),dept:"it"},
+ alex:{n:"Alex Rivera",role:B("首席执行官","CEO"),dept:"exec"}
+};
+const REQUESTERS = ["chris","jordan","taylor","morgan","avery","casey","riley","jamie"];
+const ROLE_POC = {ops:"sam",sales:"jordan",cfo:"casey",gc:"dana",ceo:"alex"};
+const TYPE_OWNER = {contract:"priya",employment:"marcus",compliance:"elena",immigration:"marcus",dispute:"dana",general:"sam"};
+const OWN_POC = {rec:["morgan"],pay:["riley"],hr:["jamie"],pl:["avery","elena"],legal:["elena"],itl:["drew","elena"],it:["drew"]};
+const pn = id => PEOPLE[id]?.n || "—";
+const pl = id => PEOPLE[id] ? T(`${PEOPLE[id].n}（${tx(PEOPLE[id].role)}）`,`${PEOPLE[id].n} (${tx(PEOPLE[id].role)})`) : "—";
+const plEn = id => PEOPLE[id] ? `${PEOPLE[id].n} (${PEOPLE[id].role.en})` : "—";
+const pocLine = (req,own) => T(`业务对接：${pn(req)} · 法务经办：${pn(own)}`,`Business POC: ${pn(req)} · Legal POC: ${pn(own)}`);
+
+const MATTERS = [
+ {id:"M-1048",req:"jamie",owner:"dana",t:B("PAGA 通知函：加州 EOR 员工工时争议","PAGA notice: CA EOR worker hours dispute"),type:"dispute",dept:"legal",pri:"crit",status:"outside",due:"2026-11-04",firm:"Harlow & Pierce LLP",state:"CA"},
+ {id:"M-1043",req:"taylor",owner:"marcus",t:B("客户要求解雇加州 EOR 员工（Brightwave AI）","Client asks to terminate a CA EOR worker (Brightwave AI)"),type:"employment",dept:"cs",pri:"high",status:"review",due:"2026-11-03",state:"CA"},
+ {id:"M-1042",req:"chris",owner:"priya",t:B("猎头服务协议审查：Halcyon Robotics 客户稿","Recruiting agreement review: Halcyon Robotics draft"),type:"contract",dept:"sales",pri:"high",status:"review",due:"2026-11-05",state:"CA"},
+ {id:"M-1046",req:"avery",owner:"elena",t:B("伊利诺伊 AI 简历筛选上线评估","Illinois AI resume screening launch review"),type:"compliance",dept:"product",pri:"high",status:"new",due:"2026-11-12",state:"IL"},
+ {id:"M-1041",req:"avery",owner:"marcus",t:B("德国 EOR 上线：员工派遣许可（AÜG）评估","Germany EOR launch: labour-leasing licence (AÜG) review"),type:"compliance",dept:"product",pri:"high",status:"review",due:"2026-11-14",state:"DE"},
+ {id:"M-1044",req:"morgan",owner:"elena",t:B("3 个纽约职位发布缺少薪资范围","3 New York job posts missing pay ranges"),type:"compliance",dept:"recruiting",pri:"med",status:"approval",due:"2026-11-06",state:"NY"},
+ {id:"M-1045",req:"casey",owner:"priya",t:B("候选人归属争议：$38,400 猎头费","Candidate ownership dispute: $38,400 fee"),type:"dispute",dept:"finance",pri:"med",status:"review",due:"2026-11-10",state:"TX"},
+ {id:"M-1047",req:"jamie",owner:"marcus",t:B("EOR 员工 H-1B 转换（3 人）","H-1B transfers for 3 EOR workers"),type:"immigration",dept:"hr",pri:"med",status:"outside",due:"2026-11-20",firm:"Meridian Immigration Group",state:"NY"},
+ {id:"M-1049",req:"morgan",owner:"elena",t:B("背景调查服务商 DPA 续签","Background check vendor DPA renewal"),type:"contract",dept:"recruiting",pri:"low",status:"new",due:"2026-11-28",state:"—"},
+];
+const PRI = {crit:[B("紧急","Urgent"),"p-crit"],high:[B("高","High"),"p-high"],med:[B("中","Medium"),"p-med"],low:[B("低","Low"),"p-low"]};
+const SEV = {critical:[B("致命","Critical"),"p-crit"],high:[B("高","High"),"p-high"],medium:[B("中","Medium"),"p-med"],low:[B("低","Low"),"p-low"]};
+const TIER = {walk_away:[B("突破底线","Breaches walk-away"),"p-crit"],acceptable:[B("可接受","Acceptable"),"p-med"],missing:[B("缺少条款","Missing clause"),"p-high"],ideal:[B("符合理想","Meets ideal"),"p-ok"]};
+const SEV_ORDER = {critical:0,high:1,medium:2,low:3};
+
+/* ---- Contracts & playbooks ---- */
+const CONTRACTS = {
+ search:{label:B("猎头服务协议","Recruiting agreement"),party:B("Halcyon Robotics, Inc.（客户）起草","Drafted by Halcyon Robotics, Inc. (client)"),side:B("Agency（猎头方，我方）","Agency (us, the recruiter)"),matter:"M-1042",req:"chris",owner:"priya",
+ text:`RECRUITING SERVICES AGREEMENT
+Between Halcyon Robotics, Inc. ("Client") and Northbeam Talent Partners LLC ("Agency")
+
+1. Services. Agency shall identify and present candidates for positions designated by Client from time to time.
+
+2. Fee. For each candidate hired, Client shall pay Agency a fee equal to fifteen percent (15%) of the candidate's first-year base salary, excluding bonus, equity and sign-on payments.
+
+3. Payment. Invoices are payable net ninety (90) days after the candidate's start date.
+
+4. Guarantee. If a placed candidate's employment ends for any reason within one hundred eighty (180) days of the start date, Agency shall refund one hundred percent (100%) of the fee.
+
+5. Candidate Ownership. Agency's right to a fee applies only if Client hires the candidate within three (3) months after Agency's first submission. Where Client has received the same candidate from another source, Client may decide in its sole discretion which source, if any, is owed a fee.
+
+6. Non-Solicitation. For twenty-four (24) months after the last placement, Agency shall not solicit or recruit any employee of Client.
+
+7. Compliance. Agency shall comply with all applicable laws. Agency represents that it does not use automated tools to screen candidates.
+
+8. Indemnification. Agency shall indemnify, defend and hold harmless Client from any and all claims arising out of or relating to this Agreement or any candidate, without limitation.
+
+9. Limitation of Liability. In no event shall Client be liable for any amount exceeding the fees paid in the prior one (1) month.
+
+10. Candidate Data. Agency grants Client a perpetual right to use all candidate information submitted, for any purpose.
+
+11. Term. This Agreement continues until terminated by Client on thirty (30) days' notice. Agency may not terminate while any search is open.
+
+12. Governing Law. Delaware law governs; exclusive venue in the state courts of Delaware.`},
+ eor:{label:B("EOR 服务协议","EOR agreement"),party:B("Brightwave AI, Inc.（客户）起草","Drafted by Brightwave AI, Inc. (client)"),side:B("Provider（EOR 方，我方）","Provider (us, the EOR)"),matter:"M-1043",req:"taylor",owner:"marcus",
+ text:`EMPLOYER OF RECORD SERVICES AGREEMENT
+Between Brightwave AI, Inc. ("Client") and Northbeam Talent Partners LLC ("Provider")
+
+1. Services. Provider shall act as the legal employer of record for workers designated by Client ("Assigned Workers").
+
+2. Direction and Control. Client shall direct the day-to-day work of Assigned Workers. Client may require Provider to terminate any Assigned Worker immediately upon written notice, and Provider shall do so within one (1) business day.
+
+3. Fees and Funding. Client shall pay a monthly service fee of $650 per Assigned Worker. Provider shall advance all payroll, taxes and benefits; Client shall reimburse within forty-five (45) days of invoice. No security deposit is required.
+
+4. Classification and Compliance. Provider shall be solely responsible for all employment-law compliance, including worker classification, wage and hour, and leave, regardless of any instruction given by Client.
+
+5. Intellectual Property. All work product created by Assigned Workers is owned by Client. Provider shall not require Assigned Workers to sign any invention assignment agreement.
+
+6. Severance and Termination Costs. Provider bears all severance, accrued PTO payouts, and waiting-time penalties.
+
+7. Conversion. Client may hire any Assigned Worker directly at any time without fee.
+
+8. Indemnification. Provider shall indemnify Client against all claims brought by Assigned Workers.
+
+9. Insurance. Provider shall maintain workers' compensation insurance as required by law.
+
+10. Term. This Agreement has a term of twelve (12) months. Client may terminate for convenience on ten (10) days' notice.`},
+ custom:{label:B("上传 / 粘贴合同","Upload / paste a contract"),party:B("自定义","Custom"),side:"",matter:"",text:""}
+};
+
+const P = (id,topic,sev,ideal,acceptable,walk,auth)=>({id,topic,sev,ideal,acceptable,walk,auth});
+const PLAYBOOKS = {
+ search:[
+  P("fee",B("猎头费率","Placement fee"),"high",B("首年现金薪酬（底薪+目标奖金）的 25%","25% of first-year cash comp (base + target bonus)"),B("首年底薪的 20%","20% of first-year base"),B("低于底薪的 18%","Below 18% of base"),B("VP Sales（<20%）/ CEO（<18%）","VP Sales (<20%) / CEO (<18%)")),
+  P("payment",B("付款期限","Payment terms"),"medium",B("入职后 Net 15","Net 15 from start date"),B("Net 30","Net 30"),B("超过 Net 60","Longer than Net 60"),B("CFO","CFO")),
+  P("guarantee",B("保证期与退款","Guarantee & refund"),"high",B("60 天，仅免费替换","60 days, replacement only"),B("90 天，限主动离职或因故解雇，按比例退款","90 days, resignation or for-cause only, pro-rata refund"),B("超过 120 天，或任何原因全额退款","Over 120 days, or full refund for any reason"),B("VP Sales","VP Sales")),
+  P("ownership",B("候选人归属","Candidate ownership"),"high",B("12 个月，先推荐者得","12 months, first submission wins"),B("6 个月","6 months"),B("少于 6 个月，或重复推荐由客户自行决定","Under 6 months, or client decides duplicates"),B("VP Sales","VP Sales")),
+  P("non_solicit",B("不招揽条款","Non-solicitation"),"medium",B("双向，12 个月，仅限有接触的员工","Mutual, 12 months, contacted staff only"),B("单向，12 个月，仅限有接触的员工","One-way, 12 months, contacted staff only"),B("超过 12 个月或覆盖全部员工","Over 12 months or all employees"),B("VP Sales","VP Sales")),
+  P("ai_tools",B("AI 筛选工具陈述","AI screening representation"),"critical",B("披露使用的工具，并声明已按 NYC LL144 完成偏见审计","Disclose tools and state the NYC LL144 bias audit is done"),B("一般合规陈述，不涉及工具","General compliance rep, silent on tools"),B("声明「不使用自动化工具」（与事实不符）","Rep that no automated tools are used (untrue)"),B("法务负责人","General Counsel")),
+  P("indemnity",B("赔偿责任","Indemnification"),"critical",B("双向，限于己方违约或过失引起的第三方索赔","Mutual, third-party claims from own breach or negligence"),B("双向，设上限","Mutual, capped"),B("单向且无上限","One-way and uncapped"),B("法务负责人","General Counsel")),
+  P("liability",B("责任上限","Liability cap"),"high",B("双向，12 个月费用","Mutual, 12 months of fees"),B("双向，6 个月费用","Mutual, 6 months of fees"),B("只保护客户的单向上限","Cap protects the client only"),B("法务负责人","General Counsel")),
+  P("data",B("候选人数据","Candidate data"),"high",B("仅限招聘评估用途，含 CCPA 服务提供者条款","Hiring evaluation only, with CCPA service-provider terms"),B("限定用途，未写 CCPA 条款","Purpose-limited, no CCPA terms"),B("永久、任意用途","Perpetual, any purpose"),B("法务负责人","General Counsel")),
+  P("termination",B("解约权","Termination rights"),"low",B("双方 30 天通知","Either party, 30 days' notice"),B("双方 60 天通知","Either party, 60 days' notice"),B("只有客户可解约","Only the client may terminate"),B("Legal Ops","Legal Ops")),
+  P("law",B("适用法律与管辖","Governing law & venue"),"low",B("加州法，旧金山","California law, San Francisco"),B("特拉华州法，可远程应诉","Delaware law, remote appearance allowed"),B("—","—"),B("Legal Ops","Legal Ops"))
+ ],
+ eor:[
+  P("control",B("解雇请求流程","Termination requests"),"critical",B("客户提出请求，我方 2 个工作日内法务复核后执行","Client requests; we review within 2 business days, then act"),B("复核期 1 个工作日","1 business day to review"),B("客户通知后 1 个工作日内必须解雇，无复核","Must terminate within 1 business day, no review"),B("法务负责人","General Counsel")),
+  P("funding",B("工资垫付与押金","Payroll funding & deposit"),"critical",B("发薪前 3 个工作日预付，押金 = 1 个月工资","Prefund 3 business days before payday; deposit = 1 month payroll"),B("Net 15 + 押金","Net 15 + deposit"),B("我方垫付超过 30 天且无押金","We advance payroll over 30 days with no deposit"),B("CFO","CFO")),
+  P("compliance",B("合规责任划分","Compliance allocation"),"critical",B("我方管薪酬、税务、法定申报；客户管工作指挥、工时上报、现场安全","We own payroll, tax, filings; client owns direction, hours reporting, site safety"),B("按共同雇佣分担，设上限","Shared as co-employers, capped"),B("无论客户如何指示，均由我方独担","We bear everything regardless of client instructions"),B("法务负责人","General Counsel")),
+  P("indemnity",B("赔偿责任","Indemnification"),"critical",B("双向，各自为己方行为负责","Mutual, each for its own conduct"),B("双向，设上限","Mutual, capped"),B("我方单向承担员工的全部索赔","We alone cover all worker claims"),B("法务负责人","General Counsel")),
+  P("ip",B("知识产权链条","IP chain of title"),"high",B("员工与我方签 PIIA（含加州 §2870 告知），我方收款后转让给客户","Workers sign our PIIA (with CA §2870 notice); we assign to client on payment"),B("员工直接与客户签转让协议","Workers assign directly to client"),B("禁止签发明转让协议","Invention assignment prohibited"),B("法务负责人","General Counsel")),
+  P("termination_costs",B("离职成本","Separation costs"),"high",B("遣散费、PTO 结算按实际成本由客户承担","Client reimburses severance and PTO payouts at cost"),B("双方分担","Shared"),B("全部由我方承担，含客户造成的罚金","We bear all, including penalties the client causes"),B("CFO","CFO")),
+  P("conversion",B("转聘费","Conversion fee"),"medium",B("12 个月内转聘收 2 个月服务费","2 months of service fees within 12 months"),B("1 个月服务费","1 month of service fees"),B("不收费","No fee"),B("VP Sales","VP Sales")),
+  P("insurance",B("保险","Insurance"),"medium",B("我方：工伤 + EPLI；客户：一般责任险 + EPLI","Us: workers' comp + EPLI; client: CGL + EPLI"),B("我方：工伤 + EPLI","Us: workers' comp + EPLI"),B("无 EPLI","No EPLI"),B("Legal Ops","Legal Ops")),
+  P("term",B("合同期与无因解约","Term & termination for convenience"),"medium",B("12 个月，无因解约需 60 天通知","12 months; 60 days' notice for convenience"),B("30 天通知","30 days' notice"),B("少于 30 天","Under 30 days"),B("VP Sales","VP Sales"))
+ ]
+};
+
+const F = (playbook_id,clause,tier,severity,quote,issue,why,redline,approver)=>({playbook_id,clause,tier,severity,quote,issue,why,redline,approver});
+const PRESET = {
+ search:[
+  F("ai_tools","§7","walk_away","critical","Agency represents that it does not use automated tools to screen candidates.",
+    B("要求我方声明「不使用自动化筛选工具」，与事实不符","Requires us to state we use no automated screening tools, which is untrue"),
+    B("我方使用 AI 简历筛选。签了就是虚假陈述，可能构成违约甚至欺诈。纽约市职位还要满足 Local Law 144 的偏见审计和候选人告知要求，伊利诺伊自 2026 年起也把招聘中的 AI 歧视写进了人权法。","We use AI resume screening, so signing this is a misrepresentation that could be breach or even fraud. NYC roles also require a Local Law 144 bias audit and candidate notice, and since 2026 Illinois' Human Rights Act covers discriminatory AI in hiring."),
+    "Agency may use automated employment decision tools to assist with sourcing and screening. For candidates in New York City, Agency represents that any such tool has undergone a bias audit as required by NYC Local Law 144 and that Agency provides the required notices. Final hiring decisions remain with Client.","General Counsel"),
+  F("indemnity","§8","walk_away","critical","Agency shall indemnify, defend and hold harmless Client from any and all claims arising out of or relating to this Agreement or any candidate, without limitation.",
+    B("单向、无上限，覆盖与任何候选人相关的索赔","One-way, uncapped, and covers any claim about any candidate"),
+    B("客户自己的录用决定（比如歧视性拒录）引发的索赔也会转到我方，风险无法控制，也可能超出 EPLI 的承保范围。","Claims from the client's own hiring decisions, such as a discriminatory rejection, would land on us. The risk is open-ended and may fall outside our EPLI coverage."),
+    "Each party shall indemnify the other against third-party claims to the extent arising from the indemnifying party's breach of this Agreement, negligence or willful misconduct. Client is solely responsible for its own hiring and employment decisions.","General Counsel"),
+  F("liability","§9","walk_away","high","In no event shall Client be liable for any amount exceeding the fees paid in the prior one (1) month.",
+    B("责任上限只保护客户，且只有 1 个月费用","The cap protects only the client, at one month of fees"),
+    B("上限不对等：客户最多赔 1 个月费用，我方却要承担无上限赔偿。","The caps are lopsided: the client owes at most one month of fees while our indemnity is unlimited."),
+    "Except for indemnification obligations and breaches of confidentiality, each party's aggregate liability shall not exceed the fees paid or payable under this Agreement in the twelve (12) months preceding the claim.","General Counsel"),
+  F("fee","§2","walk_away","high","fifteen percent (15%) of the candidate's first-year base salary, excluding bonus, equity and sign-on payments",
+    B("费率 15% 且只按底薪计算，低于 18% 底线","15% of base salary only, below our 18% floor"),
+    B("按我方报价体系，低于底薪 18% 需要 CEO 批准；只按底薪计算还会让实际收入再降 10%–20%。","Under our pricing, anything below 18% of base needs CEO approval. Excluding bonus cuts actual revenue by a further 10%–20%."),
+    "Client shall pay Agency a fee equal to twenty-two percent (22%) of the candidate's first-year guaranteed cash compensation, including base salary and target bonus.","CEO"),
+  F("guarantee","§4","walk_away","high","If a placed candidate's employment ends for any reason within one hundred eighty (180) days of the start date, Agency shall refund one hundred percent (100%) of the fee.",
+    B("180 天内任何原因离职都全额退款","Full refund if the hire leaves for any reason within 180 days"),
+    B("包括客户裁员、撤销岗位等我方无法控制的情形，等于半年内收入都不确定。","This includes layoffs or eliminated roles we cannot control, so revenue stays uncertain for six months."),
+    "If a placed candidate voluntarily resigns or is terminated for cause within ninety (90) days of the start date, Agency will conduct one replacement search at no additional fee or, if no replacement is presented within sixty (60) days, refund the fee pro rata. The guarantee does not apply if Client has not paid the fee when due or eliminates the position.","VP Sales"),
+  F("ownership","§5","walk_away","high","Client may decide in its sole discretion which source, if any, is owed a fee.",
+    B("归属期只有 3 个月，重复推荐由客户自行决定","Only 3 months of ownership; the client decides duplicate submissions"),
+    B("这是猎头费争议最常见的来源（参见 M-1045）。应以书面推荐时间先后为准。","This is the most common source of fee disputes (see M-1045). Ownership should follow the earliest written submission."),
+    "Agency is entitled to a fee if Client hires any candidate submitted by Agency within twelve (12) months after submission. Where the same candidate is presented by more than one source, the fee is owed to the source that first submitted the candidate in writing with the candidate's consent.","VP Sales"),
+  F("data","§10","walk_away","high","Agency grants Client a perpetual right to use all candidate information submitted, for any purpose.",
+    B("客户可永久、任意使用候选人信息","Client may use candidate data forever, for any purpose"),
+    B("加州 CCPA 自 2023 年起覆盖求职者数据，需要限定用途并约定服务提供者条款；任意用途还会违反我方对候选人的隐私告知。","Since 2023 the CCPA covers applicant data, so use must be purpose-limited with service-provider terms. Any-purpose use would also break our privacy notice to candidates."),
+    "Client may use candidate information solely to evaluate the candidate for employment with Client and shall not sell or share it. Each party shall comply with applicable privacy laws, including the CCPA, with respect to candidate information.","General Counsel"),
+  F("payment","§3","walk_away","medium","Invoices are payable net ninety (90) days after the candidate's start date.",
+    B("Net 90，超过 Net 60 底线","Net 90, beyond our Net 60 limit"),
+    B("回款周期过长，再叠加 180 天全额退款，现金流风险叠加。","Slow payment combined with a 180-day full refund compounds the cash-flow risk."),
+    "Invoices are due within thirty (30) days of the candidate's start date. Overdue amounts accrue interest at 1% per month.","CFO"),
+  F("non_solicit","§6","walk_away","medium","For twenty-four (24) months after the last placement, Agency shall not solicit or recruit any employee of Client.",
+    B("单向、24 个月、覆盖客户全部员工","One-way, 24 months, covering every client employee"),
+    B("范围过宽，限制我方核心业务；过宽的「互不挖角」安排还可能引起反垄断关注。","Too broad for a recruiting business, and wide no-poach terms can draw antitrust scrutiny."),
+    "During the term and for twelve (12) months thereafter, neither party shall directly solicit for employment any employee of the other party with whom it had material contact under this Agreement. General advertisements do not count as solicitation.","VP Sales"),
+  F("termination","§11","walk_away","low","Agency may not terminate while any search is open.",
+    B("只有客户可以解约","Only the client can terminate"),
+    B("只要还有一个在办职位，我方就无法退出合作。","As long as one search is open, we cannot exit."),
+    "Either party may terminate this Agreement on thirty (30) days' written notice. Fees for candidates submitted before termination remain payable under Section 5.","Legal Ops"),
+  F("law","§12","acceptable","low","Delaware law governs; exclusive venue in the state courts of Delaware.",
+    B("特拉华州法和专属管辖，可接受但应诉成本高","Delaware law and venue: acceptable, but costly to litigate"),
+    B("可以接受，但建议争取允许远程应诉或改为仲裁。","Acceptable. Ask for remote appearance or arbitration."),
+    "This Agreement is governed by Delaware law. Disputes shall be resolved by binding arbitration administered by JAMS, with hearings conducted by videoconference unless the parties agree otherwise.","Legal Ops")
+ ],
+ eor:[
+  F("control","§2","walk_away","critical","Client may require Provider to terminate any Assigned Worker immediately upon written notice, and Provider shall do so within one (1) business day.",
+    B("客户要求后 1 个工作日内必须解雇，没有复核环节","Must terminate within 1 business day of the request, with no review"),
+    B("我方是法定雇主，解雇责任在我方。加州解雇须当日结清全部工资（Labor Code §201），延迟会产生最长 30 天的等待期罚金（§203）；未经审查的解雇还可能构成报复或歧视。","We are the legal employer and own the termination. California requires all wages on the day of discharge (Labor Code §201); late pay triggers up to 30 days of waiting-time penalties (§203). An unreviewed firing can also be retaliation or discrimination."),
+    "Client may request the termination of an Assigned Worker in writing. Provider will review the request within two (2) business days and carry out lawful terminations in compliance with applicable law, including final pay requirements. Client shall provide the reasons and documentation Provider reasonably requests.","General Counsel"),
+  F("funding","§3","walk_away","critical","Provider shall advance all payroll, taxes and benefits; Client shall reimburse within forty-five (45) days of invoice. No security deposit is required.",
+    B("我方垫付全部工资，45 天后才报销，且无押金","We advance all payroll, get repaid in 45 days, with no deposit"),
+    B("以 40 名员工、人均月薪 $12,000 估算，单个客户需垫资约 $480,000/月。客户一旦违约就是坏账，而员工工资仍须照发。","At 40 workers and $12,000 average monthly pay, that is about $480,000 a month for one client. If the client defaults, we still owe the wages."),
+    "Client shall fund each payroll, including taxes and benefits, no later than three (3) business days before the pay date, and shall pay a security deposit equal to one month of estimated gross payroll before the first payroll.","CFO"),
+  F("compliance","§4","walk_away","critical","Provider shall be solely responsible for all employment-law compliance, including worker classification, wage and hour, and leave, regardless of any instruction given by Client.",
+    B("无论客户如何指示，全部雇佣合规责任都由我方独担","We bear all employment-law compliance regardless of client instructions"),
+    B("工时、排班、现场安全由客户实际控制。在共同雇主标准下客户本身也有责任，合同把客户行为的后果全部转给我方不合理。","The client controls hours, schedules and site safety, and under joint-employer standards shares liability. Shifting all of it to us is unreasonable."),
+    "Provider is responsible for payroll, tax withholding, benefits administration and statutory employer filings. Client is responsible for directing work, accurately reporting hours worked, workplace safety at Client sites, and compliance with laws applicable to its own instructions and conduct.","General Counsel"),
+  F("indemnity","§8","walk_away","critical","Provider shall indemnify Client against all claims brought by Assigned Workers.",
+    B("员工的所有索赔都由我方单向赔偿","We alone indemnify every worker claim"),
+    B("即使索赔源于客户主管的骚扰或歧视，我方也要赔偿，EPLI 也可能拒赔。","We would pay even for harassment or discrimination by client supervisors, and EPLI may deny coverage."),
+    "Each party shall indemnify the other against third-party claims to the extent caused by its own breach, negligence or violation of law, including Client's direction and supervision of Assigned Workers.","General Counsel"),
+  F("ip","§5","walk_away","high","Provider shall not require Assigned Workers to sign any invention assignment agreement.",
+    B("禁止签发明转让协议，客户的知识产权链条会断","No invention assignment, which breaks the client's IP chain of title"),
+    B("员工的工作成果在法律上首先归雇主（我方），没有 PIIA 就无法有效转给客户，客户自己也有风险。加州员工的转让协议须附 Labor Code §2870 告知。","Work product first vests in the employer (us). Without a PIIA we cannot pass clean title to the client. California assignments need the Labor Code §2870 notice."),
+    "Each Assigned Worker will sign Provider's proprietary information and invention assignment agreement, including the notice required by California Labor Code §2870. Upon receipt of the applicable fees, Provider assigns to Client all rights in work product created for Client.","General Counsel"),
+  F("termination_costs","§6","walk_away","high","Provider bears all severance, accrued PTO payouts, and waiting-time penalties.",
+    B("遣散费、PTO 结算、等待期罚金全部由我方承担","We bear all severance, PTO payouts and waiting-time penalties"),
+    B("这些是员工成本，应按实际发生额转给客户；因客户延迟通知造成的罚金更应由客户承担。","These are worker costs and should pass through at cost. Penalties caused by the client's late notice belong to the client."),
+    "Client shall reimburse at cost all severance, accrued PTO payouts and other separation costs. Penalties caused by Client's late notice or late funding are Client's responsibility.","CFO"),
+  F("conversion","§7","walk_away","medium","Client may hire any Assigned Worker directly at any time without fee.",
+    B("客户可随时免费转聘","Client may convert workers anytime for free"),
+    B("我方承担了招聘、入职和合规成本，转聘应收费。","We carry recruiting, onboarding and compliance costs, so conversion should carry a fee."),
+    "If Client hires an Assigned Worker directly within twelve (12) months of assignment, Client shall pay a conversion fee equal to two (2) months of service fees for that worker.","VP Sales"),
+  F("term","§10","walk_away","medium","Client may terminate for convenience on ten (10) days' notice.",
+    B("客户 10 天即可无因解约","Client can terminate for convenience on 10 days' notice"),
+    B("10 天不足以安排员工转岗或依法解雇，离职成本会落在我方。","Ten days is not enough to redeploy or lawfully separate workers, leaving us with the costs."),
+    "Either party may terminate this Agreement for convenience on sixty (60) days' written notice.","VP Sales"),
+  F("insurance","§9","acceptable","medium","Provider shall maintain workers' compensation insurance as required by law.",
+    B("只约定了工伤保险，没有 EPLI","Only workers' comp; no EPLI"),
+    B("雇佣行为责任险（EPLI）是 EOR 最主要的风险转移工具，客户也应投保覆盖其主管行为。","EPLI is the main risk-transfer tool for an EOR, and the client should carry EPLI for its supervisors."),
+    "Provider shall maintain workers' compensation and employment practices liability insurance. Client shall maintain commercial general liability insurance and employment practices liability insurance covering claims arising from the conduct of its supervisors.","Legal Ops")
+ ]
+};
+
+/* ---- Compliance ---- */
+const STATES = [{k:"CA",n:"California",emp:142},{k:"NY",n:"New York",emp:96},{k:"TX",n:"Texas",emp:61},{k:"IL",n:"Illinois",emp:41}];
+const TOPICS = [
+ {k:"pay_trans",n:B("薪酬透明","Pay transparency"),d:B("职位须写薪资范围","Pay range in job posts"),tog:"recruiting"},
+ {k:"salary_hist",n:B("禁问薪资历史","Salary history ban"),d:B("面试与录用","Interviews and offers"),tog:"recruiting"},
+ {k:"ai_hiring",n:B("AI 招聘工具","AI hiring tools"),d:B("自动化筛选与面试","Automated screening and interviews"),tog:"ai"},
+ {k:"background",n:B("背景调查","Background checks"),d:B("犯罪记录与 FCRA","Criminal history and FCRA"),tog:"recruiting"},
+ {k:"final_pay",n:B("离职工资时限","Final pay timing"),d:B("解雇与辞职","Firing and resignation"),tog:"eor"},
+ {k:"sick",n:B("带薪病假","Paid sick leave"),d:B("EOR 员工","EOR workers"),tog:"eor"},
+ {k:"noncompete",n:B("竞业限制","Non-competes"),d:B("雇佣协议模板","Employment templates"),tog:"eor"},
+ {k:"biometric",n:B("生物识别","Biometrics"),d:B("指纹 / 人脸打卡","Fingerprint / face time clocks"),tog:"bio"},
+ {k:"license",n:B("职介 / PEO 资质","Agency / PEO licensing"),d:B("经营许可","Business licensing"),tog:"eor"},
+ {k:"registration",n:B("工资税与失业保险","Payroll tax & UI"),d:B("州雇主登记","State employer registration"),tog:"eor"}
+];
+const STATUS = {gap:[B("缺口","Gap"),"c-gap"],progress:[B("整改中","Fixing"),"c-progress"],review:[B("待核实","To verify"),"c-review"],ok:[B("已合规","Compliant"),"c-ok"],none:[B("无专门规定","No specific rule"),"c-none"]};
+const OWN = {rec:B("招聘部","Recruiting"),pay:B("薪酬运营","Payroll Ops"),hr:B("HR","HR"),pl:B("产品 + 法务","Product + Legal"),legal:B("法务","Legal"),itl:B("IT + 法务","IT + Legal"),it:B("IT","IT")};
+const C = (s,rule,cite,owner,verified,note)=>({s,rule,cite,owner,verified,note});
+const MX = {
+ CA:{
+  pay_trans:C("ok",B("15 人以上雇主的职位发布须写明薪资范围；受雇主委托发布职位的第三方（含猎头）同样适用。","Employers with 15+ employees must include the pay scale in job postings; third parties engaged to post jobs, including recruiters, must too."),"Cal. Lab. Code §432.3","rec","2026-09-14"),
+  salary_hist:C("ok",B("不得询问求职者的薪资历史；求职者要求时须提供该岗位的薪资范围。","Do not ask applicants about salary history; provide the position's pay scale on request."),"Cal. Lab. Code §432.3","rec","2026-09-14"),
+  ai_hiring:C("progress",B("在招聘中使用自动化决策系统受 FEHA 反歧视规则约束；须保留相关记录至少 4 年，反偏见测试可作为抗辩证据。","Automated-decision systems used in hiring are subject to FEHA anti-discrimination rules; keep related records for at least 4 years. Anti-bias testing can support a defense."),"Cal. Code Regs. tit. 2, §11008 et seq. (eff. 2025-10-01)","pl","2026-06-20",B("需要补齐模型筛选记录的 4 年留存。","Need 4-year retention for screening-model records.")),
+  background:C("ok",B("Fair Chance Act：发出附条件录用前不得询问犯罪记录；撤回录用须做个别评估并书面通知。","Fair Chance Act: no criminal-history questions before a conditional offer; rescinding an offer requires an individualized assessment and written notices."),"Cal. Gov. Code §12952; ICRAA","rec","2026-09-14"),
+  final_pay:C("progress",B("解雇须当日结清全部工资；无通知辞职 72 小时内结清；逾期按日工资计罚，最多 30 天（等待期罚金）。","Fired: all wages due on the last day. Quit without notice: within 72 hours. Late pay triggers one day's wages per day, up to 30 days (waiting-time penalties)."),"Cal. Lab. Code §§201–203","pay","2026-08-30",B("M-1043：客户要求解雇加州员工，须当日备好最终工资。","M-1043: a client wants a CA worker terminated; final pay must be ready that day.")),
+  sick:C("ok",B("每年至少 40 小时（5 天）带薪病假。","At least 40 hours (5 days) of paid sick leave per year."),"Cal. Lab. Code §246 (SB 616)","hr","2026-07-02"),
+  noncompete:C("ok",B("竞业限制原则上无效；不得要求签署，也不得试图执行，包括在外州签署的协议。","Non-competes are void; employers may not require or try to enforce them, even ones signed out of state."),"Cal. Bus. & Prof. Code §§16600, 16600.5","legal","2026-05-11"),
+  biometric:C("ok",B("无专门生物识别法；生物识别信息属于 CCPA 下的敏感个人信息，须告知并限定用途。","No dedicated biometric statute; biometric data is sensitive personal information under the CCPA and needs notice and purpose limits."),"Cal. Civ. Code §1798.140","itl","2026-09-01"),
+  license:C("review",B("目前判断：猎头一般无需持职介牌照；EOR 不在 PEO 登记范围。需法务核实。","Current view: recruiters generally need no employment-agency license and EOR is outside PEO registration. Legal to verify."),"—","legal","2026-03-02"),
+  registration:C("ok",B("向 EDD 登记雇主账户，缴纳失业保险（UI）、雇员培训税（ETT），代扣州残疾保险（SDI）。","Register an employer account with EDD; pay UI and ETT, withhold SDI."),"Cal. Unemp. Ins. Code","pay","2026-10-01")},
+ NY:{
+  pay_trans:C("gap",B("职位发布须写明真诚的薪资范围；在州内或向州内报告的岗位均适用，纽约市另有地方法。","Job postings must include a good-faith pay range for jobs performed in, or reporting to, New York. NYC has its own local law."),"N.Y. Lab. Law §194-b; NYC Admin. Code §8-107(32)","rec","2026-10-12",B("M-1044：3 个纽约职位发布缺少薪资范围。","M-1044: 3 New York postings are missing pay ranges.")),
+  salary_hist:C("ok",B("不得询问薪资历史，也不得依据薪资历史决定录用或薪酬。","Do not ask about, or rely on, salary history for hiring or pay decisions."),"N.Y. Lab. Law §194-a","rec","2026-10-12"),
+  ai_hiring:C("gap",B("在纽约市使用自动化招聘工具（AEDT）：须在一年内完成独立偏见审计并公布结果摘要，提前 10 个工作日告知候选人。","Using an automated employment decision tool (AEDT) in NYC requires an independent bias audit within the past year, a published summary, and candidate notice 10 business days ahead."),"NYC Local Law 144; 6 RCNY §5-300","pl","2026-10-20",B("当前筛选模型的偏见审计将于 2026-12-15 到期，尚未续做。","The current screening model's bias audit expires 2026-12-15 and has not been renewed.")),
+  background:C("ok",B("纽约市 Fair Chance Act：附条件录用后才可查犯罪记录；须按 Article 23-A 做评估。","NYC Fair Chance Act: criminal checks only after a conditional offer, with an Article 23-A analysis."),"NYC Admin. Code §8-107(11-a); Correction Law Art. 23-A","rec","2026-09-14"),
+  final_pay:C("ok",B("离职后不晚于下一个常规发薪日支付。","Pay by the next regular payday after separation."),"N.Y. Lab. Law §191(3)","pay","2026-08-30"),
+  sick:C("ok",B("100 人以上雇主每年最多 56 小时带薪病假；纽约市另有规定。","Employers with 100+ employees: up to 56 hours of paid sick leave per year. NYC has its own rules."),"N.Y. Lab. Law §196-b","hr","2026-07-02"),
+  noncompete:C("review",B("州级暂无竞业禁令，按合理性审查；立法动态需持续跟踪。","No statewide ban; courts apply a reasonableness test. Track pending legislation."),B("普通法","Common law"),"legal","2026-04-18"),
+  biometric:C("ok",B("雇主一般不得以录用或继续雇佣为条件采集指纹。","Employers generally may not require fingerprinting as a condition of employment."),"N.Y. Lab. Law §201-a","it","2026-09-01"),
+  license:C("review",B("从事职业介绍可能须持职介牌照；只向雇主收费的猎头是否豁免需法务核实。","Placement activity may require an employment-agency license; whether employer-paid recruiters are exempt needs legal verification."),"N.Y. Gen. Bus. Law Art. 11","legal","2026-03-02"),
+  registration:C("ok",B("向 NYS DOL 登记失业保险；纽约市居民须预扣市所得税。","Register with NYS DOL for unemployment insurance; withhold NYC income tax for city residents."),"N.Y. Lab. Law Art. 18","pay","2026-10-01")},
+ TX:{
+  pay_trans:C("none",B("无州级薪酬透明要求。","No state pay-transparency requirement."),"—","rec","2026-09-14"),
+  salary_hist:C("none",B("无州级禁问规定。","No state salary-history ban."),"—","rec","2026-09-14"),
+  ai_hiring:C("review",B("TRAIGA 禁止以歧视为目的开发或使用 AI，主要义务落在政府机构；私营雇主的具体义务需法务核实。","TRAIGA bars developing or using AI with intent to discriminate; most duties fall on government agencies. Private-employer duties need legal verification."),"Tex. Bus. & Com. Code ch. 551 (HB 149, eff. 2026-01-01)","legal","2026-02-10"),
+  background:C("none",B("私营雇主无州级犯罪记录禁问规定；仍适用联邦 FCRA。","No state ban-the-box rule for private employers; federal FCRA still applies."),"—","rec","2026-09-14"),
+  final_pay:C("ok",B("被解雇：6 个自然日内；主动辞职：下一个常规发薪日。","Fired: within 6 calendar days. Quit: by the next regular payday."),"Tex. Lab. Code §61.014","pay","2026-08-30"),
+  sick:C("none",B("无州级带薪病假；地方条例已被法院禁止执行。","No state paid sick leave; local ordinances have been enjoined."),"—","hr","2026-07-02"),
+  noncompete:C("ok",B("附属于可执行协议，且时间、地域、范围合理时可执行。","Enforceable if ancillary to an otherwise enforceable agreement and reasonable in time, area and scope."),"Tex. Bus. & Com. Code §15.50","legal","2026-05-11"),
+  biometric:C("ok",B("采集生物识别信息须事先告知并取得同意；不得出售；须在合理期限内销毁。","Give notice and get consent before capturing biometrics; no sale; destroy within a reasonable time."),"Tex. Bus. & Com. Code §503.001","it","2026-09-01"),
+  license:C("progress",B("从事 PEO 业务须向 TDLR 申领牌照。EOR 是否落入 PEO 定义尚待核实，暂按需申领处理。","PEO operations require a TDLR license. Whether EOR falls within the PEO definition is unverified, so we are applying as a precaution."),"Tex. Lab. Code ch. 91","legal","2026-10-05",B("牌照申请材料准备中。","License application in preparation.")),
+  registration:C("ok",B("向 TWC 登记失业税账户；无州个人所得税。","Register a TWC unemployment tax account; no state income tax."),"Tex. Lab. Code Title 4","pay","2026-10-01")},
+ IL:{
+  pay_trans:C("ok",B("15 人以上雇主的职位发布须写明工资或薪资范围及福利概述；第三方发布同样适用。","Employers with 15+ employees must include the pay scale and a benefits summary in postings; third-party postings too."),"820 ILCS 112/10(b-25) (eff. 2025-01-01)","rec","2026-09-14"),
+  salary_hist:C("ok",B("不得询问薪资历史，也不得据此决定录用或薪酬。","Do not ask about, or rely on, salary history."),"820 ILCS 112/10(b-5)","rec","2026-09-14"),
+  ai_hiring:C("progress",B("AI 视频面试须事先告知、取得同意并限制分享；人权法修正案禁止在招聘中使用造成歧视的 AI，且须告知员工。","AI video interviews need notice, consent and sharing limits. The amended Human Rights Act bars discriminatory AI in hiring and requires notice to employees."),"820 ILCS 42; 775 ILCS 5/2-102 (HB 3773, eff. 2026-01-01)","pl","2026-10-20",B("M-1046：新筛选模型上线前评估。","M-1046: pre-launch review of the new screening model.")),
+  background:C("ok",B("须对犯罪记录做个别评估并书面通知，才能据此拒绝录用。","Individualized assessment and written notice are required before rejecting based on conviction records."),"775 ILCS 5/2-103.1","rec","2026-09-14"),
+  final_pay:C("ok",B("不晚于下一个常规发薪日支付，含已累积未用的带薪假。","Pay by the next regular payday, including accrued unused paid leave."),"820 ILCS 115/5","pay","2026-08-30"),
+  sick:C("ok",B("Paid Leave for All Workers Act：每年最多 40 小时任意用途带薪假；芝加哥另有条例。","Paid Leave for All Workers Act: up to 40 hours of paid leave for any reason. Chicago has its own ordinance."),"820 ILCS 192","hr","2026-07-02"),
+  noncompete:C("ok",B("收入低于法定门槛的员工不得签竞业限制；须给 14 天考虑期并书面建议咨询律师。","No non-competes below the earnings threshold; give 14 days to review and written advice to consult a lawyer."),"820 ILCS 90","legal","2026-05-11"),
+  biometric:C("gap",B("采集前须书面告知、取得书面同意，并公开保存与销毁政策；法定赔偿每人 $1,000（过失）或 $5,000（故意 / 轻率），2024 年修正后按每人一次计算。","Written notice, a written release and a public retention and destruction policy are required before collection. Statutory damages are $1,000 (negligent) or $5,000 (intentional or reckless) per person, counted once per person after the 2024 amendment."),"740 ILCS 14 (BIPA)","itl","2026-10-15",B("芝加哥两家客户现场使用指纹打卡，同意书未覆盖 EOR 员工。","Two Chicago client sites use fingerprint time clocks; releases do not cover EOR workers.")),
+  license:C("review",B("私营职业介绍机构可能须持牌；派遣用工另受 Day and Temporary Labor Services Act 规制。需法务核实是否适用。","Private employment agencies may need a license; staffing is also regulated by the Day and Temporary Labor Services Act. Legal to verify applicability."),"225 ILCS 515; 820 ILCS 175","legal","2026-03-02"),
+  registration:C("ok",B("向 IDES 登记失业保险。","Register with IDES for unemployment insurance."),"820 ILCS 405","pay","2026-10-01")}
+};
+const FEDERAL = [
+ ["FLSA",B("加班与豁免岗位认定；独立承包人与雇员的区分","Overtime and exempt status; contractor vs. employee"),"29 U.S.C. §201 et seq."],
+ ["Title VII / ADA / ADEA",B("招聘与雇佣中的反歧视；EEOC 管辖","Anti-discrimination in hiring and employment; EEOC"),"42 U.S.C. §2000e et seq."],
+ ["FCRA",B("背景调查须单独书面告知、取得授权，拒录前后两次通知","Standalone disclosure and authorization; pre- and post-adverse action notices"),"15 U.S.C. §1681b"],
+ ["I-9",B("入职 3 个工作日内完成雇佣资格核验","Verify work eligibility within 3 business days of hire"),"8 U.S.C. §1324a"],
+ ["ACA",B("50 名以上全职员工须提供合格医疗保险并申报","50+ full-time employees: offer qualifying coverage and report"),"26 U.S.C. §4980H"]
+];
+/* ---- International & data protection ---- */
+const JURIS = [{k:"EU",n:B("欧盟层面","EU-wide"),sub:B("GDPR 与指令","GDPR & directives")},{k:"UK",n:B("英国","United Kingdom"),emp:23},{k:"DE",n:B("德国","Germany"),sub:B("筹备中","launching")},{k:"ON",n:B("加拿大安大略","Ontario, Canada"),emp:14}];
+const ITOPICS = [
+ {k:"lawful",n:B("数据处理合法依据","Lawful basis"),d:B("候选人与员工数据","Candidate & worker data"),tog:"intlData"},
+ {k:"transfer",n:B("跨境数据传输","Cross-border transfer"),d:B("传到美国","Transfers to the US"),tog:"intlData"},
+ {k:"dsar",n:B("数据主体请求","Data subject requests"),d:B("访问、删除等","Access, erasure, etc."),tog:"intlData"},
+ {k:"ai",n:B("自动化决策 / AI","Automated decisions / AI"),d:B("AI 筛选与录用","AI screening and hiring"),tog:"intlData"},
+ {k:"written",n:B("书面雇佣条款","Written terms"),d:B("入职文件","Onboarding documents"),tog:"intlEor"},
+ {k:"dismissal",n:B("解雇保护与通知期","Dismissal & notice"),d:B("EOR 员工","EOR workers"),tog:"intlEor"},
+ {k:"leasing",n:B("派遣 / 职介许可","Staffing / agency licence"),d:B("EOR 能否合法经营","Can EOR operate legally"),tog:"intlEor"},
+ {k:"pe",n:B("常设机构风险","Permanent establishment"),d:B("客户的税务风险","Client tax exposure"),tog:"intlEor"},
+ {k:"noncompete",n:B("竞业限制","Non-competes"),d:B("雇佣协议模板","Employment templates"),tog:"intlEor"},
+ {k:"pay",n:B("薪酬透明","Pay transparency"),d:B("职位与薪酬信息","Postings and pay data"),tog:"intlEor"}
+];
+const IMX = {
+ EU:{
+  lawful:C("progress",B("处理候选人和员工数据须有合法依据（通常是合同履行、法定义务或正当利益），不宜依赖员工同意；须按第 13、14 条提供隐私告知。","Processing candidate and worker data needs a lawful basis (usually contract, legal obligation or legitimate interests), not employee consent; give Article 13 and 14 notices."),"GDPR Art. 6, 13–14","itl","2026-10-01",B("候选人告知书未覆盖从 LinkedIn 等渠道间接收集的数据（第 14 条）。","The candidate notice does not cover data sourced indirectly, e.g. from LinkedIn (Art. 14).")),
+  transfer:C("ok",B("向美国传输：美国接收方通过欧美数据隐私框架（DPF）认证即可；否则须签标准合同条款（SCCs）并做传输影响评估。","Transfers to the US: fine if the US recipient is certified under the EU-US Data Privacy Framework (DPF); otherwise SCCs plus a transfer impact assessment."),"GDPR Art. 45–46; Decision (EU) 2023/1795","legal","2026-09-20",B("Northbeam 已完成 DPF 自认证（含 HR 数据），须每年续期。","Northbeam is DPF self-certified (HR data included); renew yearly.")),
+  dsar:C("ok",B("数据主体请求须在 1 个月内答复，复杂情况可再延长 2 个月。","Answer data subject requests within one month, extendable by two months for complex cases."),"GDPR Art. 12, 15–22","itl","2026-09-20"),
+  ai:C("review",B("完全自动化的录用决定受第 22 条限制，须有人工介入；欧盟 AI 法把招聘用 AI 列为高风险，相关义务的适用时间可能推迟，需核实。","Solely automated hiring decisions are restricted by Article 22 and need human involvement. The EU AI Act treats hiring AI as high-risk; when those duties apply may be postponed, so verify."),"GDPR Art. 22; Regulation (EU) 2024/1689 Annex III(4)","pl","2026-06-15"),
+  written:C("none",B("由成员国落实（透明可预测工作条件指令）。","Set by each member state (Transparent and Predictable Working Conditions Directive)."),"Directive (EU) 2019/1152","hr","2026-09-01"),
+  dismissal:C("none",B("由成员国规定。","Set by each member state."),"—","legal","2026-09-01"),
+  leasing:C("none",B("由成员国规定（临时派遣工作指令）。","Set by each member state (Temporary Agency Work Directive)."),"Directive 2008/104/EC","legal","2026-09-01"),
+  pe:C("none",B("按各国税法和税收协定判断。","Decided under national tax law and tax treaties."),"—","legal","2026-09-01"),
+  noncompete:C("none",B("由成员国规定。","Set by each member state."),"—","legal","2026-09-01"),
+  pay:C("progress",B("薪酬透明指令：面试前须告知薪资范围，不得询问薪资历史；成员国须在 2026-06-07 前转化为国内法。","Pay Transparency Directive: share the pay range before interview and do not ask about pay history; member states had to transpose it by 2026-06-07."),"Directive (EU) 2023/970","rec","2026-10-12",B("各成员国转化进度不一，需逐国跟踪。","Transposition varies by country; track each one."))},
+ UK:{
+  lawful:C("ok",B("UK GDPR 与欧盟规则基本一致：须有合法依据并提供隐私告知。","UK GDPR mirrors the EU rules: a lawful basis and a privacy notice are required."),"UK GDPR Art. 6, 13–14; DPA 2018","itl","2026-09-20"),
+  transfer:C("ok",B("向美国传输：接收方加入 DPF 英国扩展（英美数据桥）即可；否则使用国际数据传输协议（IDTA）或欧盟 SCCs 英国附录。","Transfers to the US: fine if the recipient joined the UK Extension to the DPF (UK-US data bridge); otherwise the IDTA or the UK Addendum to the EU SCCs."),"UK GDPR Art. 45–46","legal","2026-09-20"),
+  dsar:C("ok",B("1 个月内答复，复杂情况可再延长 2 个月。","Answer within one month, extendable by two months."),"UK GDPR Art. 12, 15","itl","2026-09-20"),
+  ai:C("review",B("2025 年《数据（使用与访问）法》放宽了自动化决策限制，但仍须提供告知、人工复核和申诉等保障；实施细节需核实。","The Data (Use and Access) Act 2025 relaxed limits on automated decisions but still requires safeguards such as notice, human review and challenge; verify the details."),"Data (Use and Access) Act 2025; UK GDPR Art. 22A–22D","pl","2026-05-20"),
+  written:C("ok",B("入职第一天须提供书面雇佣条款说明。","Give a written statement of employment terms on day one."),"Employment Rights Act 1996 s.1","hr","2026-09-01"),
+  dismissal:C("review",B("一般须连续工作满 2 年才享有不公平解雇保护；就业权利改革拟缩短资格期，生效时间需核实。","Unfair dismissal protection generally needs 2 years' service; employment rights reform shortens the qualifying period, and the start date needs verifying."),"Employment Rights Act 1996 Part X; Employment Rights Act 2025","legal","2026-07-10"),
+  leasing:C("ok",B("职介和派遣业务受《职介行为条例》约束：须在提供服务前书面约定条款，不得向求职者收费。","Agencies and employment businesses follow the Conduct Regulations: agree terms in writing before providing services and do not charge work-seekers."),"Employment Agencies Act 1973; Conduct Regulations 2003","legal","2026-08-15"),
+  pe:C("progress",B("客户在英国无实体、员工从事核心创收工作（如代表客户签约）时，可能为客户构成常设机构。","If the client has no UK entity and workers do core revenue work, such as signing contracts for the client, a permanent establishment may arise."),"UK–US Tax Treaty Art. 5","legal","2026-10-01",B("两家客户的英国员工有签约权限，需调整岗位职责。","UK workers at two clients can sign contracts; job duties need changing.")),
+  noncompete:C("ok",B("须保护正当利益且范围合理才可执行，通常不超过 6–12 个月。","Enforceable only to protect a legitimate interest and if reasonable, usually 6–12 months at most."),B("普通法（合理性审查）","Common law (reasonableness)"),"legal","2026-08-15"),
+  pay:C("ok",B("250 人以上雇主须报告性别薪酬差距；目前英国员工不足 250 人。","Employers with 250+ staff report the gender pay gap; we are below 250 in the UK."),"Gender Pay Gap Information Regulations 2017","hr","2026-09-01")},
+ DE:{
+  lawful:C("ok",B("GDPR + 联邦数据保护法：员工数据处理须为雇佣关系所必需；有劳资委员会时可用企业协议作依据。","GDPR plus the Federal Data Protection Act: worker data must be necessary for employment; a works agreement can serve as a basis."),"GDPR Art. 6, 88; BDSG §26","itl","2026-10-01"),
+  transfer:C("ok",B("同欧盟：DPF 认证，或 SCCs + 传输影响评估。","Same as the EU: DPF certification, or SCCs plus a transfer impact assessment."),"GDPR Art. 45–46","legal","2026-09-20"),
+  dsar:C("ok",B("同欧盟：1 个月内答复。","Same as the EU: answer within one month."),"GDPR Art. 12","itl","2026-09-20"),
+  ai:C("review",B("同欧盟第 22 条；在招聘中引入 AI 工具一般需要劳资委员会参与。","Article 22 applies; bringing AI into hiring generally involves the works council."),"GDPR Art. 22; BetrVG §§87(1)(6), 95(2a)","pl","2026-06-15"),
+  written:C("ok",B("须在法定期限内书面列明主要雇佣条件。","Set out the essential terms in writing within the statutory deadline."),"Nachweisgesetz (NachwG)","hr","2026-09-01"),
+  dismissal:C("ok",B("员工超过 10 人且任职满 6 个月适用解雇保护法，须有正当理由；有劳资委员会时须事先听取意见。","With 10+ staff and 6 months' service, the Dismissal Protection Act requires a valid reason; consult the works council first where one exists."),"KSchG §§1, 23; BetrVG §102","legal","2026-09-01"),
+  leasing:C("gap",B("EOR 模式在德国通常构成员工派遣：须持派遣许可，同一客户派遣上限 18 个月；无许可派遣会使雇佣关系直接归属客户，并面临罚款。","In Germany an EOR setup is usually labour leasing: it needs a licence, and assignments to one client are capped at 18 months. Without a licence the employment passes to the client and fines apply."),"Arbeitnehmerüberlassungsgesetz (AÜG) §§1, 9, 10","legal","2026-10-22",B("M-1041：德国 EOR 上线前须取得许可或改用当地持牌合作方。","M-1041: get a licence or use a licensed local partner before launch.")),
+  pe:C("review",B("员工长期在德国为外国客户开展核心业务，可能构成常设机构；需结合税收协定评估。","Workers doing core business in Germany for a foreign client over time may create a permanent establishment; assess under the tax treaty."),"AO §12; Germany–US Tax Treaty Art. 5","legal","2026-09-01"),
+  noncompete:C("ok",B("离职后竞业限制须书面约定、最长 2 年，并支付不少于原报酬 50% 的补偿，否则无效。","Post-employment non-competes need writing, last at most 2 years, and pay at least 50% of prior pay, or they are void."),"HGB §§74–75","legal","2026-09-01"),
+  pay:C("progress",B("员工有权了解薪酬比较信息；欧盟薪酬透明指令的德国转化法尚待落实。","Workers can request pay comparison data; Germany's transposition of the EU Pay Transparency Directive is still pending."),"Entgelttransparenzgesetz; Directive (EU) 2023/970","rec","2026-10-12")},
+ ON:{
+  lawful:C("review",B("候选人数据在商业活动中收集时适用 PIPEDA：须告知目的并取得同意；省级监管雇主的员工数据一般不适用 PIPEDA。需法务核实。","PIPEDA applies to candidate data collected in commercial activity: state the purpose and get consent. Worker data at provincially regulated employers is generally outside PIPEDA. Legal to verify."),"PIPEDA Sch. 1","itl","2026-09-20"),
+  transfer:C("ok",B("无需充分性认定；须用合同保障接收方的保护水平，并告知数据可能在境外处理。","No adequacy test: protect the data by contract and tell people it may be processed abroad."),"PIPEDA Principle 4.1.3","legal","2026-09-20"),
+  dsar:C("ok",B("访问请求须在 30 天内答复。","Answer access requests within 30 days."),"PIPEDA Principle 4.9; s.8(3)","itl","2026-09-20"),
+  ai:C("progress",B("2026 年起，25 人以上雇主的公开职位若用 AI 筛选、评估或挑选候选人，须在职位发布中披露。","From 2026, employers with 25+ staff must disclose in public job postings if AI is used to screen, assess or select candidates."),"ESA 2000 (Working for Workers Four Act, 2024)","rec","2026-10-12",B("安大略职位模板尚未加入 AI 披露语句和薪资范围。","Ontario posting templates lack the AI disclosure and pay range.")),
+  written:C("ok",B("须在入职前或首个工作日提供书面信息（雇主、工作地点、工资、工时等）。","Give written information (employer, location, pay, hours) before or on the first day."),"ESA 2000 (Working for Workers Five Act, 2024)","hr","2026-09-01"),
+  dismissal:C("ok",B("法定通知或补偿：每满一年 1 周，最多 8 周；普通法上的合理通知期通常更长。","Statutory notice or pay: one week per year of service, up to 8 weeks; common-law reasonable notice is often longer."),B("ESA 2000 Part XV；普通法","ESA 2000 Part XV; common law"),"legal","2026-09-01"),
+  leasing:C("progress",B("临时派遣机构须持牌经营并提交保证金。EOR 是否属于临时派遣机构需核实，暂按需申领处理。","Temporary help agencies need a licence and a security deposit. Whether EOR counts as one needs verifying; we are applying as a precaution."),"ESA 2000 Part XVIII.1","legal","2026-10-05",B("牌照申请中。","Licence application in progress.")),
+  pe:C("review",B("员工在加拿大为美国客户长期开展核心业务，可能构成常设机构。","Workers doing core business in Canada for a US client over time may create a permanent establishment."),"Canada–US Tax Treaty Art. V","legal","2026-09-01"),
+  noncompete:C("ok",B("原则上禁止竞业限制，高管和企业出售除外。","Non-competes are banned except for executives and business sales."),"ESA 2000 s.67.2","legal","2026-09-01"),
+  pay:C("progress",B("2026 年起，25 人以上雇主的公开职位须写明薪资或薪资范围（范围差距不超过 5 万加元）。","From 2026, employers with 25+ staff must state pay or a pay range (spread up to CAD 50,000) in public postings."),"ESA 2000 (Working for Workers Four Act, 2024)","rec","2026-10-12")}
+};
+const REGIONS = {us:{cols:STATES,topics:TOPICS,mx:MX},intl:{cols:JURIS,topics:ITOPICS,mx:IMX}};
+
+/* ---- Privacy-law radar: dated developments mapped to matrix cells ---- */
+const UTYPE = {law:[B("新法","New law"),"p-info"],amend:[B("修正案","Amendment"),"p-info"],case:[B("判例","Court ruling"),"p-high"],reg:[B("监管规则","Regulation"),"p-info"],proposal:[B("立法提案","Proposal"),"p-none"]};
+const USTATUS = {new:[B("待评估","To assess"),"p-new"],reviewed:[B("已评估","Assessed"),"p-ok"],applied:[B("已更新矩阵","Matrix updated"),"p-ok"]};
+const JURNAME = {EU:B("欧盟","EU"),UK:B("英国","UK"),DE:B("德国","Germany"),ON:B("安大略","Ontario"),CA:B("加州","California"),NY:B("纽约州","New York"),TX:B("得州","Texas"),IL:B("伊利诺伊","Illinois"),CO:B("科罗拉多","Colorado"),OTHER:B("其他","Other")};
+const U = (id,date,jur,type,title,sum,impact,cells,src,status)=>({id,date,jur,type,title,sum,impact,cells,src,status});
+const UPDATES = [
+ U("u1","2025-11-19","EU","proposal",B("欧盟委员会提出“数字综合方案”（Digital Omnibus）","European Commission proposes the Digital Omnibus"),
+   B("拟修改 GDPR 的部分定义和规则，并推迟 AI 法高风险义务（含招聘用 AI）的适用时间，最晚到 2027 年 12 月。仍是提案，须经立法程序。","Proposes changes to some GDPR definitions and rules and postpones AI Act high-risk duties, including hiring AI, at the latest to December 2027. Still a proposal pending the legislative process."),
+   B("通过前不改变现有义务，但应调整 AI 招聘合规时间表。","No change to current duties until adopted, but revisit the AI hiring compliance timeline."),["intl|EU|ai","intl|DE|ai","intl|EU|lawful"],"European Commission, 2025-11-19","new"),
+ U("u2","2025-09-03","EU","case",B("欧盟普通法院驳回对欧美数据隐私框架的挑战（Latombe 案）","EU General Court dismisses the challenge to the EU-US Data Privacy Framework (Latombe)"),
+   B("法院维持欧盟委员会对美国的充分性决定，DPF 继续有效。原告已上诉至欧盟法院，结果待定。","The court upheld the Commission’s adequacy decision for the US, so the DPF stays valid. The claimant appealed to the Court of Justice; the outcome is pending."),
+   B("跨境传输仍可依赖 DPF；建议备好 SCCs，以防上诉推翻。","Transfers can still rely on the DPF; keep SCCs ready in case the appeal succeeds."),["intl|EU|transfer","intl|DE|transfer"],"Case T-553/23","new"),
+ U("u3","2025-02-27","EU","case",B("欧盟法院：受自动化决策影响者有权获得逻辑解释（Dun & Bradstreet Austria 案）","CJEU: people subject to automated decisions are entitled to an explanation of the logic (Dun & Bradstreet Austria)"),
+   B("法院认定须就决策程序和原理提供有意义的解释，不能仅以商业秘密为由拒绝。","The court held that a meaningful explanation of the procedure and principles is owed; trade secrets alone do not justify refusal."),
+   B("欧盟候选人就 AI 筛选提出访问请求时，须能解释筛选逻辑；需准备解释模板。","When EU candidates ask about AI screening, we must explain the logic; prepare an explanation template."),["intl|EU|ai","intl|EU|dsar","intl|DE|ai"],"Case C-203/22","new"),
+ U("u6","2025-09-23","CA","reg",B("加州隐私保护局自动化决策（ADMT）等新规获批","California CPPA regulations on automated decision-making technology approved"),
+   B("新规涵盖自动化决策技术、风险评估和网络安全审计，2026 年 1 月 1 日起生效；用于雇佣等重大决定的 ADMT 要求自 2027 年 1 月 1 日起适用。","The rules cover automated decision-making technology, risk assessments and cybersecurity audits, effective January 1, 2026; ADMT duties for significant decisions such as employment apply from January 1, 2027."),
+   B("加州 AI 筛选须准备使用前告知、选择退出或申诉机制及风险评估。","California AI screening needs pre-use notices, opt-out or appeal paths, and a risk assessment."),["us|CA|ai_hiring","us|CA|biometric"],"Cal. Code Regs. tit. 11, §7001 et seq.","new"),
+ U("u5","2025-06-19","UK","law",B("英国《数据（使用与访问）法》获御准","UK Data (Use and Access) Act receives Royal Assent"),
+   B("放宽了对自动化决策的一般限制（特殊类别数据除外），但要求提供告知、人工介入和申诉等保障；条款分阶段生效。","Relaxes the general limit on automated decisions (except special category data) but requires notice, human intervention and challenge; provisions commence in stages."),
+   B("英国 AI 筛选可适度放宽，但须落实保障措施；跟踪各条款生效时间。","UK AI screening can loosen somewhat with safeguards in place; track commencement dates."),["intl|UK|ai","intl|UK|lawful"],"Data (Use and Access) Act 2025","new"),
+ U("u9","2025-08-28","CO","amend",B("科罗拉多 AI 法生效日推迟至 2026 年 6 月 30 日","Colorado AI Act effective date pushed to June 30, 2026"),
+   B("特别会期通过的法案推迟了高风险 AI 系统（含就业决定）相关义务。","A special-session bill delayed duties for high-risk AI systems, including employment decisions."),
+   B("科罗拉多不在当前矩阵范围；若在当地招聘，需新增科罗拉多一列。","Colorado is outside the current matrix; add a Colorado column if we recruit there."),[],"SB 25B-004","new"),
+ U("u8","2025-06-22","TX","law",B("得州签署《负责任 AI 治理法》（TRAIGA）","Texas signs the Responsible AI Governance Act (TRAIGA)"),
+   B("2026 年 1 月 1 日生效，禁止以歧视等为目的开发或使用 AI，由州总检察长执法，设有补救期。","Effective January 1, 2026; bars developing or using AI with intent to discriminate, among other things; enforced by the Attorney General with a cure period."),
+   B("得州“AI 招聘工具”仍待核实对私营雇主的具体义务。","Texas “AI hiring tools” still needs the private-employer duties confirmed."),["us|TX|ai_hiring"],"HB 149 (2025)","reviewed"),
+ U("u10","2026-01-01","ON","law",B("安大略职位发布须披露 AI 使用（生效）","Ontario job postings must disclose AI use (in force)"),
+   B("25 人以上雇主的公开职位，如用 AI 筛选、评估或挑选候选人，须在发布中说明，并写明薪资范围。","Employers with 25+ staff must state in public postings if AI screens, assesses or selects candidates, and include pay ranges."),
+   B("安大略职位模板需加入 AI 披露语句和薪资范围（矩阵已标整改中）。","Ontario posting templates need the AI disclosure and pay range (already “Fixing” in the matrix)."),["intl|ON|ai","intl|ON|pay"],"Working for Workers Four Act, 2024","reviewed"),
+ U("u7","2024-08-02","IL","amend",B("伊利诺伊 BIPA 修正：赔偿按人计算，允许电子签署同意","Illinois BIPA amended: damages per person, electronic releases allowed"),
+   B("同一方式对同一人的多次采集只算一次违规；书面同意可用电子签名。此前 Cothron 案曾认定每次扫描都算一次违规。","Repeated collection from the same person by the same method counts as one violation, and releases may be signed electronically. Cothron had held each scan was a separate violation."),
+   B("赔偿风险下降，但指纹打卡同意书仍是缺口；可用电子同意流程加快补齐。","Exposure drops, but fingerprint-clock releases are still a gap; an e-signature consent flow can close it faster."),["us|IL|biometric"],"SB 2979 (Public Act 103-0769)","reviewed"),
+ U("u4","2023-12-07","EU","case",B("欧盟法院 SCHUFA 案：起决定性作用的评分属于第 22 条自动化决策","CJEU SCHUFA: a score that plays a determining role is an Article 22 automated decision"),
+   B("即使最终决定由他人作出，只要自动生成的评分起决定性作用，也受第 22 条限制。","Even when someone else makes the final decision, an automated score that plays a determining role falls under Article 22."),
+   B("AI 打分若实际决定候选人去留，须有实质性人工复核并能证明。","If AI scores effectively decide who advances, we need meaningful human review and proof of it."),["intl|EU|ai","intl|DE|ai"],"Case C-634/21","reviewed")
+];
+const cellKeyLabel = k => { const [r,c,t]=k.split("|"); const R=REGIONS[r]; const tp=R.topics.find(x=>x.k===t); return `${c} · ${tx(tp.n)}` };
+const updatesFor = (r,c,t) => UPDATES.filter(u=>u.cells.includes(`${r}|${c}|${t}`));
+const countNewUpdates = () => UPDATES.filter(u=>u.status==="new").length;
+
+/* ---- Cross-border transfer check (rules, no AI) ---- */
+const XFROM={EU:B("欧盟 / 欧洲经济区（含德国）","EU / EEA (incl. Germany)"),UK:B("英国","United Kingdom"),ON:B("加拿大安大略","Ontario, Canada")};
+const XREC={dpf_hr:B("已认证 DPF，覆盖 HR 数据","DPF-certified, HR data covered"),dpf:B("已认证 DPF，不覆盖 HR 数据","DPF-certified, HR data not covered"),none:B("未认证 DPF","Not DPF-certified")};
+const XDATA={candidate:B("候选人数据","Candidate data"),employee:B("员工数据","Worker data"),sensitive:B("敏感数据（生物识别、健康、犯罪记录）","Sensitive data (biometric, health, criminal)")};
+function transferCheck(x){
+  const steps=[]; let mech, ok, cite;
+  if(x.from==="ON"){
+    mech=T("无需充分性认定：合同保障 + 告知境外处理","No adequacy test: contractual safeguards + notice of foreign processing"); ok=true; cite="PIPEDA Principle 4.1.3";
+    steps.push(T("与美国接收方签数据处理协议，约定相当的保护水平","Sign a data processing agreement with comparable protection"));
+    steps.push(T("在隐私告知中说明数据可能在美国处理","Tell individuals their data may be processed in the US"));
+    if(x.data==="sensitive"){ steps.push(T("敏感数据建议取得明示同意","Get express consent for sensitive data")); ok=false; }
+    return {ok,mech,steps,cite};
+  }
+  const covered = x.rec==="dpf_hr";
+  if(x.from==="EU"){
+    cite="GDPR Art. 45–46";
+    if(covered){ mech=T("充分性决定（欧美数据隐私框架 DPF）","Adequacy decision (EU-US Data Privacy Framework)"); ok=true; steps.push(T("每年确认 DPF 认证有效，且仍覆盖 HR 数据","Confirm each year that the DPF certification is active and covers HR data")); }
+    else { mech=T("标准合同条款（SCCs）+ 传输影响评估","Standard Contractual Clauses (SCCs) + transfer impact assessment"); ok=false;
+      steps.push(T("签署欧盟 SCCs（控制者到处理者用模块 2）","Sign the EU SCCs (Module 2, controller to processor)"));
+      steps.push(T("完成并存档传输影响评估","Complete and file a transfer impact assessment"));
+      if(x.rec==="dpf") steps.push(T("认证未覆盖 HR 数据：候选人和员工数据不能依赖 DPF（保守口径，需核实）","Certification excludes HR data, so candidate and worker data cannot rely on the DPF (conservative view; verify)")); }
+  } else {
+    cite="UK GDPR Art. 45–46";
+    if(covered){ mech=T("英美数据桥（DPF 英国扩展）","UK-US data bridge (UK Extension to the DPF)"); ok=true; steps.push(T("确认接收方已加入 DPF 英国扩展","Confirm the recipient joined the UK Extension")); }
+    else { mech=T("国际数据传输协议（IDTA）或 SCCs 英国附录 + 传输风险评估","IDTA or UK Addendum to the SCCs + transfer risk assessment"); ok=false;
+      steps.push(T("签署 IDTA 或英国附录","Sign the IDTA or the UK Addendum")); steps.push(T("完成传输风险评估","Complete a transfer risk assessment")); }
+  }
+  if(x.data==="sensitive"){ steps.push(T("敏感数据另需第 9 条处理条件，并做数据保护影响评估（DPIA）","Sensitive data also needs an Article 9 condition and a DPIA")); ok=false; }
+  steps.push(T("在隐私告知中列明跨境传输及保障措施","List the transfer and its safeguards in the privacy notice"));
+  return {ok,mech,steps,cite};
+}
+
+const POLICIES = [
+ ["LP-01",B("合同审批：猎头协议费率低于底薪 20% 须 VP Sales 批准，低于 18% 须 CEO 批准。","Contract approval: a recruiting fee below 20% of base needs VP Sales approval; below 18% needs CEO approval.")],
+ ["LP-04",B("解雇请求：客户要求解雇 EOR 员工时，须先提交法务审查；加州员工须在解雇当日备好最终工资。","Termination requests: when a client asks us to terminate an EOR worker, Legal reviews first. For California workers, final pay must be ready on the termination day.")],
+ ["LP-07",B("职位发布：所有职位发布一律写明薪资范围，不论所在州是否强制。","Job posts: every job post includes a pay range, whether or not the state requires it.")],
+ ["LP-09",B("AI 工具：AI 筛选结果只作参考，不得自动拒绝候选人；新工具上线前须完成偏见审计评估。","AI tools: AI screening results are advisory and may not auto-reject candidates. New tools need a bias audit review before launch.")],
+ ["LP-12",B("外部律所：委托前须由法务确认预算；单个事项预算超过 $25,000 须 CFO 批准。","Outside counsel: Legal confirms the budget before engagement; matters budgeted over $25,000 need CFO approval.")]
+];
+
+/* ---- Counsel ---- */
+const FIRMS = [
+ {n:"Harlow & Pierce LLP",poc:"dana",area:B("加州雇佣诉讼 · PAGA / 集体诉讼","California employment litigation · PAGA / class actions"),rates:B("合伙人 $695 · 律师 $425","Partner $695 · Associate $425"),budget:90000,spent:71400,matters:["M-1048"],score:4.2,note:B("EPLI 保险公司指定律所，保单约定费率上限","EPLI panel counsel; policy sets rate caps")},
+ {n:"Kessler Vance LLP",poc:"marcus",area:B("多州工资工时咨询（NY / IL / TX）","Multi-state wage & hour advice (NY / IL / TX)"),rates:B("合伙人 $610 · 律师 $390","Partner $610 · Associate $390"),budget:60000,spent:38200,matters:[],score:4.6,note:B("月度固定咨询额度 $4,000","$4,000 monthly advice retainer")},
+ {n:"Meridian Immigration Group",poc:"marcus",area:B("H-1B / PERM / I-9 审计","H-1B / PERM / I-9 audits"),rates:B("固定收费 $6,500 / 申请","Flat fee $6,500 per petition"),budget:45000,spent:46800,matters:["M-1047"],score:4.0,note:B("本年度已超预算 4%","4% over budget this year")},
+ {n:"Lumen Privacy Counsel",poc:"elena",area:B("BIPA · AI 招聘合规 · 偏见审计","BIPA · AI hiring compliance · bias audits"),rates:B("合伙人 $560 · 律师 $360","Partner $560 · Associate $360"),budget:35000,spent:21900,matters:[],score:4.4,note:B("可协助 NYC LL144 偏见审计","Can support NYC LL144 bias audits")},
+ {n:"Northgate Benefits Law PC",poc:"sam",area:B("ERISA / ACA 福利合规","ERISA / ACA benefits compliance"),rates:B("按项目封顶收费","Capped project fees"),budget:20000,spent:7600,matters:[],score:4.1,note:null}
+];
+const OCG = {rates:{Partner:650,Associate:425,Paralegal:225},maxDay:10,
+  rules:[B("合伙人费率上限 $650/h，律师 $425/h，律师助理 $225/h（EPLI 保单约定）","Rate caps: Partner $650/h, Associate $425/h, Paralegal $225/h (set by the EPLI policy)"),
+   B("禁止「打包计时」：一条记录只能对应一项任务","No block billing: one task per time entry"),
+   B("内部会议只允许一名参会人计费","Internal conferences: only one attendee may bill"),
+   B("律师不得为行政事务计费（整理文件、装订等）","Lawyers may not bill clerical work (organizing files, binders)"),
+   B("单人单日超过 10 小时须附说明","Over 10 hours per person per day requires an explanation"),
+   B("差旅一律经济舱；须事先批准","Travel: economy only, pre-approved")]};
+const INVOICE = {firm:"Harlow & Pierce LLP",matter:B("M-1048 PAGA 通知函","M-1048 PAGA notice"),no:"HP-2026-1017",period:"2026-10-01 – 2026-10-10",lines:[
+ {d:"10-01",tk:"R. Harlow",role:"Partner",rate:695,h:3.5,task:"L110",act:"A104",desc:"Review PAGA notice and client file; develop response strategy"},
+ {d:"10-01",tk:"R. Harlow",role:"Partner",rate:695,h:1.2,task:"L110",act:"A110",desc:"Organize documents and prepare binder"},
+ {d:"10-02",tk:"J. Ortiz",role:"Associate",rate:425,h:9.8,task:"L120",act:"A102",desc:"Research; draft memo; calls with client; review emails; prepare outline"},
+ {d:"10-02",tk:"J. Ortiz",role:"Associate",rate:425,h:2.0,task:"L120",act:"A105",desc:"Conference with M. Chen re research"},
+ {d:"10-02",tk:"M. Chen",role:"Associate",rate:410,h:2.0,task:"L120",act:"A105",desc:"Conference with J. Ortiz re research"},
+ {d:"10-03",tk:"R. Harlow",role:"Partner",rate:695,h:4.0,task:"L210",act:"A103",desc:"Draft and revise response to LWDA"},
+ {d:"10-06",tk:"S. Patel",role:"Paralegal",rate:245,h:6.0,task:"L140",act:"A110",desc:"Document management"},
+ {d:"10-07",tk:"J. Ortiz",role:"Associate",rate:425,h:12.5,task:"L120",act:"A102",desc:"Legal research re waiting-time penalties and PAGA standing"},
+ {d:"10-08",tk:"R. Harlow",role:"Expense",rate:null,h:null,amt:1280,task:"E110",act:"",desc:"Airfare SFO–LAX, business class, client meeting"}
+]};
+const PI = (line,sev,rule,issue,fix,cut)=>({line,sev,rule,issue,fix,cut});
+const PRESET_INVOICE = [
+ PI(1,"high",B("费率超上限","Rate over cap"),B("R. Harlow 按 $695/h 计费，超过合伙人上限 $650/h","R. Harlow billed $695/h, above the $650/h partner cap"),B("第 1、6 行共 7.5 小时按上限重算，核减 $337.50（第 2 行另行全额核减）","Reprice lines 1 and 6 (7.5 h) at the cap: cut $337.50 (line 2 is cut in full separately)"),337.5),
+ PI(2,"high",B("行政事务","Clerical work"),B("合伙人为「整理文件、准备文件夹」计费 1.2 小时","Partner billed 1.2 h to organize documents and prepare a binder"),B("属于行政工作，全额核减 $834","Clerical work: cut in full, $834"),834),
+ PI(3,"medium",B("打包计时","Block billing"),B("一条记录包含研究、写备忘录、通话、看邮件、提纲 5 项任务，无法判断各自耗时","One entry bundles five tasks (research, memo, calls, emails, outline), so time per task is unknown"),B("退回并要求拆分；拆分前暂缓支付 $4,165","Return for itemization; hold $4,165 until split"),0),
+ PI(5,"medium",B("内部会议重复计费","Duplicate conference billing"),B("J. Ortiz 与 M. Chen 就同一会议各计 2 小时","J. Ortiz and M. Chen each billed 2 h for the same conference"),B("只保留一人，核减 M. Chen 的 $820","Allow one attendee: cut M. Chen's $820"),820),
+ PI(7,"low",B("费率超上限 / 描述模糊","Rate over cap / vague entry"),B("律师助理费率 $245/h 超上限 $225/h；「Document management」描述过于笼统","Paralegal rate $245/h exceeds the $225/h cap; \"Document management\" is too vague"),B("按上限重算核减 $120，并要求补充具体工作内容","Reprice at the cap (cut $120) and ask for specifics"),120),
+ PI(8,"medium",B("单日超时","Excessive daily hours"),B("J. Ortiz 单日计费 12.5 小时，超过 10 小时且未附说明","J. Ortiz billed 12.5 h in one day, over 10 h with no explanation"),B("要求说明；如无合理理由，超出部分 2.5 小时（$1,062.50）核减","Ask for an explanation; absent one, cut the extra 2.5 h ($1,062.50)"),1062.5),
+ PI(9,"high",B("差旅超标","Travel over policy"),B("旧金山—洛杉矶公务舱 $1,280，指引要求经济舱","Business class SFO–LAX at $1,280; guidelines require economy"),B("按经济舱参考价（约 $250）报销，核减约 $1,030","Reimburse at economy (about $250): cut about $1,030"),1030)
+];
+
+/* ============ UTIL ============ */
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => "$"+Number(n).toLocaleString("en-US",{maximumFractionDigits:2});
+const daysSince = d => Math.floor((TODAY - new Date(d+"T12:00:00"))/86400000);
+const stale = d => daysSince(d) > 120;
+const pill = (pair)=>`<span class="pill ${pair[1]}">${esc(tx(pair[0]))}</span>`;
+const pillT = (txt,cls)=>`<span class="pill ${cls}">${esc(txt)}</span>`;
+const md = d => L==="en" ? new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : d.slice(5);
+const ERR = {
+ not_granted:B("你没有允许这个页面使用 Claude，已改为显示预置示例。","Claude access was not allowed for this page, so preset examples are shown."),
+ sampling_disabled:B("当前账号无法使用 Claude，已改为显示预置示例。","Claude is not available for this account, so preset examples are shown."),
+ rate_limited:B("调用太频繁，请稍后再试。","Too many requests. Try again in a moment."),
+ session_expired:B("登录已过期，请重新登录 claude.ai。","Your session expired. Sign in to claude.ai again."),
+ refused:B("Claude 拒绝了这次请求，请修改内容后再试。","Claude declined this request. Change the input and try again."),
+ invalid_json:B("AI 返回的格式无法解析，请再试一次。","The AI reply could not be parsed. Try again."),
+ prompt_too_large:B("内容太长，请缩短合同文本后再试。","The text is too long. Shorten the contract and try again."),
+ empty_completion:B("AI 没有返回内容，请再试一次。","The AI returned nothing. Try again."),
+ upstream_error:B("连接中断，请再试一次。","The connection dropped. Try again.")};
+const errMsg = e => tx(ERR[e?.code] || ERR.upstream_error);
+const fallbackCodes = new Set(["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"]);
+const outLang = () => L==="en" ? "English" : "Simplified Chinese";
+
+/* ============ AI ============ */
+let sample = null, aiState = "pending";
+function setChrome(){
+  document.documentElement.lang = L==="en"?"en":"zh-CN";
+  const c=$("#aiChip");
+  if(aiState==="on"){c.textContent=T("AI 已连接","AI connected");c.className="ai-chip on"}
+  else if(aiState==="off"){c.textContent=T("AI 不可用 · 显示预置示例","AI unavailable · showing presets");c.className="ai-chip"}
+  else {c.textContent=T("AI 连接中…","Connecting AI…");c.className="ai-chip"}
+  $("#coChip").innerHTML=`<i></i>Northbeam Talent Partners · ${esc(T("演示数据","Demo data"))}`;
+  $("#coChip").title=T("演示公司（虚构）","Demo company (fictional)");
+  const lb=$("#langBtn"); lb.textContent = L==="en"?"中文":"EN"; lb.setAttribute("aria-label", L==="en"?"切换到中文":"Switch to English");
+  $("#brandLink").setAttribute("aria-label",T("AI Maker House · Maker Legal 首页","AI Maker House · Maker Legal home"));
+}
+async function initAI(){
+  try{ sample = window.claude ? await window.claude.use("sample") : null }catch(e){ sample=null }
+  aiState = sample ? "on" : "off"; render();
+}
+function aiDown(e){ if(fallbackCodes.has(e?.code)){ sample=null; aiState="off"; setChrome(); } }
+
+/* ============ STATE ============ */
+const S = {
+  ctype: ls.get("ctype","search"),
+  texts: {search:CONTRACTS.search.text, eor:CONTRACTS.eor.text, custom:""},
+  customKind: "search",
+  review: {}, approvals: {},
+  reviewing: false, reviewCtl:null, reviewErr:"",
+  toggles: {recruiting:true,eor:true,ai:true,bio:true,intlData:true,intlEor:true,...(ls.get("toggles",{})||{})},
+  scope: ["us","intl","radar"].includes(ls.get("scope","us"))?ls.get("scope","us"):"us",
+  upload: null,
+  updAi:{}, updBusy:null, focusUpd:null, radarJur:"all", radarStatus:"all", pasteText:"", pasteBusy:false, pasteMsg:"",
+  xfer: {from:"EU",rec:"dpf_hr",data:"candidate"},
+  cell: null, cellAi:{}, cellBusy:false,
+  chat: [], chatBusy:false, chatErr:"",
+  matters: MATTERS.slice(), newIds:[], triage:null, triageAi:null, triageBusy:false, form:null,
+  inv: null, invBusy:false, invErr:""
+};
+if(!CONTRACTS[S.ctype]) S.ctype="search";
+
+/* ============ ROUTER ============ */
+const ROUTES = ["home","contracts","compliance","intake","counsel"];
+function route(){ const h=location.hash.slice(1); if(h==="radar") return "compliance"; return ROUTES.includes(h)?h:"home" }
+window.addEventListener("hashchange",()=>{if(location.hash==="#radar") S.scope="radar"; render();$("#view").focus({preventScroll:true});window.scrollTo(0,0)});
+function renderRail(r){
+  const gaps=countStatus("gap");
+  const items=[["home","00",T("总览","Overview")],["contracts","01",T("合同审核","Contract review")],["compliance","02",T("合规框架","Compliance")],["intake","03",T("部门协作","Team requests")],["counsel","04",T("外部律所","Outside counsel")]];
+  $("#rail").setAttribute("aria-label",T("模块","Modules"));
+  $("#rail").innerHTML = items.map(([k,n,l])=>`<a href="#${k}" aria-current="${k===r?"page":"false"}"><span class="k">${n}</span>${esc(l)}${k==="compliance"&&gaps?`<span class="badge">${gaps}</span>`:""}</a>`).join("")
+    + `<div class="rail-foot">${esc(T("面向中小企业的 in-house 法务 AI 工作台。所有 AI 输出均为草稿，需持牌律师复核。","An in-house legal AI workspace for small and mid-sized companies. All AI output is a draft for review by a licensed attorney."))}</div>`;
+}
+function render(){
+  const r=route();
+  setChrome(); renderRail(r);
+  $("#view").innerHTML = ({home:vHome,contracts:vContracts,compliance:vCompliance,intake:vIntake,counsel:vCounsel})[r]() + disclaimer();
+  ({contracts:bindContracts,compliance:bindCompliance,intake:bindIntake,counsel:bindCounsel})[r]?.();
+}
+$("#langBtn").onclick=()=>{ L = L==="en"?"zh":"en"; ls.set("lang",L); S.triage=null; S.triageAi=null; render(); };
+const disclaimer = ()=>`<footer class="disc"><b>© 2026 AI Maker House. All rights reserved.</b><br>${esc(T("演示原型 · 公司、客户、律所和数据均为虚构 · 法律条目以 2026-11 为基准，标「待核实」或「需复核」的条目须由持牌律师确认 · AI 生成内容是供律师复核的草稿，不构成法律意见。","Demo prototype · All companies, clients, firms and data are fictional · Legal entries reflect November 2026; items marked \"To verify\" or \"Review due\" must be confirmed by a licensed attorney · AI output is a draft for attorney review, not legal advice."))}</footer>`;
+
+function eachCell(fn){ for(const R of Object.values(REGIONS)) for(const s of R.cols) for(const t of R.topics){ if(S.toggles[t.tog]) fn(R.mx[s.k][t.k]) } }
+function countStatus(st){ let n=0; eachCell(c=>{ if(c.s===st) n++ }); return n }
+function countStale(){ let n=0; eachCell(c=>{ if(c.s!=="none"&&stale(c.verified)) n++ }); return n }
+
+/* ============ VIEW: HOME ============ */
+function vHome(){
+  const open=S.matters;
+  const soon=open.filter(m=>(new Date(m.due+"T12:00:00")-TODAY)/86400000<=2);
+  const spent=FIRMS.reduce((a,f)=>a+f.spent,0), budget=FIRMS.reduce((a,f)=>a+f.budget,0);
+  const alerts=[
+    {c:"var(--crit)",t:T("M-1048 PAGA 通知函：答复期限 11 月 4 日","M-1048 PAGA notice: response due Nov 4"),s:T("外包 Harlow & Pierce · 本期账单有 7 处异常待核减","With Harlow & Pierce · 7 issues to cut on the latest invoice"),go:"#counsel"},
+    {c:"var(--crit)",t:T("纽约市 AI 筛选模型偏见审计 12 月 15 日到期","NYC AI screening bias audit expires Dec 15"),s:T("NYC Local Law 144 · 到期后不得继续用于纽约市职位","NYC Local Law 144 · tool cannot be used for NYC roles after expiry"),go:"#compliance"},
+    {c:"var(--high)",t:T(`${countNewUpdates()} 条隐私法动态待评估`,`${countNewUpdates()} privacy-law developments to assess`),s:T("法规动态雷达 · 含欧盟法院判例、加州 ADMT 新规、英国数据法","Law radar · CJEU rulings, California ADMT rules, UK data act"),go:"#radar"},
+    {c:"var(--crit)",t:T("德国 EOR 上线前须取得员工派遣许可","Germany EOR needs a labour-leasing licence before launch"),s:T("M-1041 · 无许可派遣会使雇佣关系直接归属客户","M-1041 · without a licence, employment passes to the client"),go:"#compliance"},
+    {c:"var(--high)",t:T("客户要求 1 个工作日内解雇加州员工","Client wants a CA worker fired within 1 business day"),s:T("M-1043 · 加州须当日结清工资，先走法务复核","M-1043 · CA final pay is due same day; Legal reviews first"),go:"#contracts"},
+    {c:"var(--high)",t:T("伊利诺伊指纹打卡未取得 EOR 员工书面同意","No written BIPA releases from IL EOR workers"),s:T("BIPA · 按人计算法定赔偿","BIPA · statutory damages per person"),go:"#compliance"},
+    {c:"var(--med)",t:T(`${countStale()} 条合规义务超过 120 天未复核`,`${countStale()} compliance items not reviewed in 120+ days`),s:T("州法变化快，复核后更新「最后核实日期」","State law moves fast; update the last-verified date after review"),go:"#compliance"}
+  ];
+  return `
+  <section class="hero">
+    <span class="eyebrow" style="color:#E3A777">${esc(CO.name)} · ${esc(tx(CO.biz))}</span>
+    <h1>${esc(T(`${soon.length} 件事项在 48 小时内到期`,`${soon.length} matters due within 48 hours`))}</h1>
+    <p>${esc(T(`${tx(CO.size)}。美国覆盖 ${CO.states.join(" / ")} 四个州，海外在英国、安大略开展 EOR，德国筹备中。`,`${tx(CO.size)}. US: ${CO.states.join(" / ")}; abroad: EOR in the UK and Ontario, Germany launching.`))}</p>
+    <div class="kpis">
+      <div class="kpi"><div class="v num">${open.length}</div><div class="l">${esc(T("进行中事项","Open matters"))}</div><div class="d bad">${esc(T(`${soon.length} 件 48 小时内到期`,`${soon.length} due within 48 h`))}</div></div>
+      <div class="kpi"><div class="v num">${countStatus("gap")}</div><div class="l">${esc(T("合规缺口","Compliance gaps"))}</div><div class="d bad">${esc(T(`${countStatus("progress")} 项整改中`,`${countStatus("progress")} being fixed`))}</div></div>
+      <div class="kpi"><div class="v num">2</div><div class="l">${esc(T("合同待审","Contracts to review"))}</div><div class="d">${esc(T("猎头协议 · EOR 协议","Recruiting · EOR"))}</div></div>
+      <div class="kpi"><div class="v num">${money(Math.round(spent/1000))}k</div><div class="l">${esc(T("外部律所支出（年初至今）","Outside counsel spend (YTD)"))}</div><div class="d ${spent>budget?"bad":"good"}">${esc(T(`预算 ${money(Math.round(budget/1000))}k 的 ${Math.round(spent/budget*100)}%`,`${Math.round(spent/budget*100)}% of ${money(Math.round(budget/1000))}k budget`))}</div></div>
+    </div>
+  </section>
+  <div class="grid-5-7">
+    <section class="card">
+      <div class="card-h"><h2>${esc(T("需要处理","Needs attention"))}</h2><span class="faint" style="font-size:13px">${esc(T("按风险排序","By risk"))}</span></div>
+      ${alerts.map(a=>`<a class="alert" href="${a.go}"><span class="bar" style="background:${a.c}"></span><span><span class="t">${esc(a.t)}</span><br><span class="s">${esc(a.s)}</span></span><span class="faint">→</span></a>`).join("")}
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>${esc(T("事项台账","Matter register"))}</h2><a class="btn ghost sm" href="#intake">${esc(T("提交新需求","New request"))}</a></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>${esc(T("事项","Matter"))}</th><th>${esc(T("类型","Type"))}</th><th>${esc(T("优先级","Priority"))}</th><th>${esc(T("对接人","POCs"))}</th><th>${esc(T("状态","Status"))}</th><th class="num">${esc(T("期限","Due"))}</th></tr></thead>
+        <tbody>${S.matters.slice(0,8).map(m=>`<tr><td><span class="mono faint">${m.id}</span><br>${esc(tx(m.t))}</td><td><span class="tag">${esc(tx(TYPE[m.type]))}</span></td><td>${pill(PRI[m.pri])}</td><td style="font-size:13px;white-space:nowrap"><span class="faint">${esc(T("业务","Biz"))}</span> ${esc(pn(m.req))}<br><span class="faint">${esc(T("法务","Legal"))}</span> ${esc(pn(m.owner))}</td><td>${esc(tx(MSTATUS[m.status]))}</td><td class="num mono">${md(m.due)}</td></tr>`).join("")}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <section class="card">
+    <div class="card-h"><h2>${esc(T("外部律所：预算与实际支出","Outside counsel: budget vs. spend"))}</h2>${spendLegend()}</div>
+    ${spendBars()}
+  </section>`;
+}
+const spendLegend = ()=>`<span class="legend"><span><i style="background:var(--brand-orange)"></i>${esc(T("已支出","Spent"))}</span><span><i style="background:var(--crit)"></i>${esc(T("超预算","Over budget"))}</span><span><i style="background:var(--ink);width:2px"></i>${esc(T("预算线","Budget"))}</span></span>`;
+function spendBars(){
+  const max=Math.max(...FIRMS.map(f=>Math.max(f.budget,f.spent)));
+  return `<div class="bars">${FIRMS.map(f=>{const over=f.spent>f.budget;return `<div class="bar-row"><span class="nm" title="${esc(f.n)}">${esc(f.n)}</span><div class="bar-track"><div class="bar-fill ${over?"over":""}" style="width:${f.spent/max*100}%"></div><div class="bar-mark" style="left:${f.budget/max*100}%"></div></div><span class="num mono" style="text-align:right">${money(f.spent)} / ${money(f.budget)}</span></div>`}).join("")}</div>`;
+}
+
+/* ============ VIEW: CONTRACTS ============ */
+const contractReq = ct => ct==="custom" ? (S.customReq||"chris") : CONTRACTS[ct].req;
+const contractOwner = ct => ct==="custom" ? (S.customKind==="eor"?"marcus":"priya") : CONTRACTS[ct].owner;
+function pbKey(ct){ return ct==="custom"?S.customKind:ct }
+function playbookFor(ct){ return PLAYBOOKS[pbKey(ct)] }
+const sideFor = k => k==="eor"?T("Provider（EOR 方）","Provider (EOR)"):T("Agency（猎头方）","Agency (recruiter)");
+/* ---- Contract upload: PDF text in the browser; scans and photos via AI ---- */
+const MAX_OCR_PAGES = 8;
+function uploadZone(){
+  const u=S.upload;
+  return `<div class="drop" id="drop">
+    <input type="file" id="fileIn" accept="application/pdf,image/png,image/jpeg,image/webp" hidden>
+    <div class="row"><b>${esc(T("上传合同 PDF 或图片","Upload a contract PDF or image"))}</b><button type="button" class="btn ghost sm" id="pickFile" ${u?.busy?"disabled":""}>${esc(T("选择文件","Choose file"))}</button><span class="hint">${esc(T("或拖到这里","or drop it here"))}</span></div>
+    <span class="hint">${esc(T(`文字版 PDF 在浏览器内直接提取，文件不离开本机；扫描件和照片由 AI 识别（最多 ${MAX_OCR_PAGES} 页）。`,`Text PDFs are read in your browser and never leave it; scans and photos are read by AI (up to ${MAX_OCR_PAGES} pages).`))}</span>
+    ${u?.busy?`<div class="thinking" style="padding:4px 0"><span class="dot3"><i></i><i></i><i></i></span>${esc(u.msg||"")}</div>`:""}
+    ${u&&!u.busy&&u.msg?`<p class="src-note ${u.err?"warn":""}">${esc(u.name)} · ${esc(u.msg)}</p>`:""}
+  </div>`;
+}
+const guessKind = t => /employer of record|assigned worker|payroll|co-employ/i.test(t) ? "eor" : "search";
+async function pdfDoc(file){
+  const lib=window.pdfjsLib; if(!lib) throw {code:"pdf_lib"};
+  return await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+}
+async function pdfText(doc){
+  const pages=[];
+  for(let i=1;i<=Math.min(doc.numPages,60);i++){ const tc=await (await doc.getPage(i)).getTextContent(); pages.push(tc.items.map(it=>(it.str||"")+(it.hasEOL?"\n":"")).join("")); }
+  return pages.join("\n\n").replace(/[ \t]+\n/g,"\n").trim();
+}
+async function pdfPagesAsImages(doc,max){
+  const blobs=[];
+  for(let i=1;i<=Math.min(doc.numPages,max);i++){
+    const page=await doc.getPage(i); const vp=page.getViewport({scale:1.6});
+    const cv=document.createElement("canvas"); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+    await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+    blobs.push(await new Promise(r=>cv.toBlob(r,"image/png")));
+  }
+  return blobs;
+}
+async function ocrImages(blobs){
+  if(!sample) throw {code:"no_ai"};
+  const lim=await sample.limits().catch(()=>null);
+  if(!lim?.images) throw {code:"images_unavailable"};
+  const n=Math.min(blobs.length, lim.images.maxCount||1);
+  const {text}=await sample(`These images are consecutive pages of a contract (or a photo of one). Transcribe ALL of the contract text verbatim, in reading order, keeping clause numbers, headings and paragraph breaks. Do not summarize, translate or comment. If an image has no contract text, skip it. Output only the transcribed text.`,{images:blobs.slice(0,n),modelTier:"default"});
+  return {text:text.trim(), used:n};
+}
+const UPLOAD_ERR = {pdf_lib:B("PDF 解析组件没有加载，请刷新页面后再试。","The PDF reader did not load. Refresh the page and try again."),no_ai:B("扫描件和图片需要 AI 识别，当前 AI 不可用。可以改用文字版 PDF，或直接粘贴文本。","Scans and images need AI, which is unavailable here. Use a text PDF or paste the text."),images_unavailable:B("当前的查看方式不支持向 AI 发送图片。可以改用文字版 PDF，或直接粘贴文本。","This view cannot send images to AI. Use a text PDF or paste the text."),unsupported:B("只支持 PDF、PNG、JPG、WebP 文件。","Only PDF, PNG, JPG and WebP files are supported."),too_big:B("文件超过 20 MB，请压缩后再上传。","The file is over 20 MB. Compress it and try again."),empty:B("没有识别出合同文字，请换一个更清晰的文件。","No contract text was found. Try a clearer file.")};
+async function handleFile(file){
+  if(!file) return;
+  S.reviewErr="";
+  const isPdf = file.type==="application/pdf" || /\.pdf$/i.test(file.name);
+  const isImg = /^image\/(png|jpeg|webp)$/.test(file.type);
+  S.upload={busy:true,name:file.name,msg:T("读取文件…","Reading the file…")}; render();
+  try{
+    if(!isPdf && !isImg) throw {code:"unsupported"};
+    if(file.size>20*1024*1024) throw {code:"too_big"};
+    let text="", msg="";
+    if(isPdf){
+      const doc=await pdfDoc(file);
+      text=await pdfText(doc);
+      if(text.replace(/\s/g,"").length>=200){
+        msg=T(`已在浏览器内提取 ${doc.numPages} 页文字，共 ${text.length} 字符。请核对后点“AI 审查”。`,`Extracted text from ${doc.numPages} pages in your browser (${text.length} characters). Check it, then review with AI.`);
+      } else {
+        S.upload.msg=T("这是扫描版 PDF，正在交给 AI 识别…","This PDF is a scan; AI is reading it…"); render();
+        const blobs=await pdfPagesAsImages(doc,MAX_OCR_PAGES);
+        const r=await ocrImages(blobs); text=r.text;
+        msg=T(`扫描版 PDF：AI 识别了 ${r.used}/${doc.numPages} 页。识别结果可能有误，请核对后再审查。`,`Scanned PDF: AI read ${r.used} of ${doc.numPages} pages. Check the text for errors before reviewing.`);
+      }
+    } else {
+      S.upload.msg=T("AI 正在识别图片中的文字…","AI is reading the image…"); render();
+      const r=await ocrImages([file]); text=r.text;
+      msg=T("AI 已从图片识别文字。识别结果可能有误，请核对后再审查。","AI transcribed the image. Check the text for errors before reviewing.");
+    }
+    if(text.replace(/\s/g,"").length<40) throw {code:"empty"};
+    S.texts.custom=text; S.customKind=guessKind(text); delete S.review.custom;
+    S.upload={busy:false,name:file.name,msg};
+  }catch(e){
+    aiDown(e);
+    S.upload={busy:false,name:file.name,err:true,msg:UPLOAD_ERR[e?.code]?tx(UPLOAD_ERR[e.code]):errMsg(e)};
+  }
+  render();
+}
+function bindUpload(){
+  const drop=$("#drop"), inp=$("#fileIn"); if(!drop||!inp) return;
+  $("#pickFile").onclick=()=>inp.click();
+  inp.onchange=()=>handleFile(inp.files[0]);
+  drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("over")});
+  drop.addEventListener("dragleave",()=>drop.classList.remove("over"));
+  drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("over");handleFile(e.dataTransfer.files[0])});
+}
+
+function vContracts(){
+  const ct=S.ctype, c=CONTRACTS[ct], pb=playbookFor(ct), rv=S.review[ct];
+  const runLabel = sample?T("AI 审查这份合同","Review with AI"):T("查看预置审查结果","Show preset review");
+  return `
+  <div class="page-head"><div><span class="eyebrow">${esc(T("模块 01","Module 01"))}</span><h1>${esc(T("合同审核","Contract review"))}</h1>
+  <p class="lead">${esc(T("按公司红线清单审查对方合同：每条立场分「理想 / 可接受 / 底线」三档，突破底线的条款自动升级审批，并给出可直接替换的英文条款。","Review counterparty paper against our playbook. Each position has ideal, acceptable and walk-away tiers; walk-away breaches escalate approval automatically, and every issue comes with a ready-to-use replacement clause."))}</p></div></div>
+  <div class="row">
+    <div class="seg" role="group" aria-label="${esc(T("选择合同","Choose contract"))}">${Object.entries(CONTRACTS).map(([k,v])=>`<button data-ct="${k}" aria-pressed="${k===ct}">${esc(tx(v.label))}</button>`).join("")}</div>
+    ${c.matter?`<span class="faint" style="font-size:13px">${esc(tx(c.party))} · ${esc(T("关联","Matter"))} ${c.matter}</span>`:""}
+    <span class="tag">${esc(T("业务对接","Business POC"))}${T("：",": ")}${esc(pl(contractReq(ct)))}</span><span class="tag">${esc(T("法务经办","Legal POC"))}${T("：",": ")}${esc(pl(contractOwner(ct)))}</span>
+  </div>
+  <div class="grid-5-7">
+    <section class="stack" style="min-width:0">
+      <div class="card">
+        <div class="card-h"><h2>${esc(T("合同原文","Contract text"))}</h2><span class="tag">${esc(T("我方：","Our side: "))}${esc(c.side?tx(c.side):sideFor(S.customKind))}</span></div>
+        ${ct==="custom"?`<div class="stack">${uploadZone()}<label class="f" for="customReq">${esc(T("业务对接人（谁提交的这份合同）","Business POC (who submitted this contract)"))}<select id="customReq">${REQUESTERS.map(k=>`<option value="${k}" ${(S.customReq||"chris")===k?"selected":""}>${esc(pl(k))}</option>`).join("")}</select></label><label class="f" for="customKind">${esc(T("合同类型（决定使用哪份红线清单）","Contract type (selects the playbook)"))}<select id="customKind"><option value="search" ${S.customKind==="search"?"selected":""}>${esc(T("猎头服务协议","Recruiting agreement"))}</option><option value="eor" ${S.customKind==="eor"?"selected":""}>${esc(T("EOR 服务协议","EOR agreement"))}</option></select></label>
+          <label class="f" for="customText">${esc(T("粘贴合同英文文本","Paste the contract text"))}<textarea id="customText" rows="16" placeholder="Paste the contract text here…">${esc(S.texts.custom)}</textarea></label></div>`
+          :`<div class="doc" id="doc">${highlightDoc(S.texts[ct], rv?.findings)}</div>`}
+        <div class="row" style="margin-top:12px">
+          <button class="btn accent" id="runReview" ${S.reviewing?"disabled":""}>${esc(runLabel)}</button>
+          ${S.reviewing?`<button class="btn ghost" id="stopReview">${esc(T("停止","Stop"))}</button>`:""}
+          ${rv?`<span class="faint" style="font-size:13px">${esc(rv.source==="ai"?T("AI 审查完成","AI review done"):T("预置示例结果","Preset example"))} · ${esc(T(`${rv.findings.length} 处问题`,`${rv.findings.length} issues`))}</span>`:""}
+        </div>
+      </div>
+      <details class="card">
+        <summary style="cursor:pointer;font-weight:700">${esc(T(`红线清单（${pb.length} 条立场）`,`Playbook (${pb.length} positions)`))}</summary>
+        <div class="pb" style="margin-top:10px">
+          <div class="h">${esc(T("立场","Position"))}</div><div class="h">${esc(T("理想","Ideal"))}</div><div class="h">${esc(T("可接受","Acceptable"))}</div><div class="h">${esc(T("底线","Walk-away"))}</div><div class="h">${esc(T("审批人","Approver"))}</div>
+          ${pb.map(p=>`<div><b>${esc(tx(p.topic))}</b><br>${pill(SEV[p.sev])}</div><div>${esc(tx(p.ideal))}</div><div>${esc(tx(p.acceptable))}</div><div style="color:var(--crit)">${esc(tx(p.walk))}</div><div class="faint">${esc(tx(p.auth))}</div>`).join("")}
+        </div>
+      </details>
+    </section>
+    <section class="stack" style="min-width:0">${reviewPanel(ct,runLabel)}</section>
+  </div>`;
+}
+function highlightDoc(text, findings){
+  let h=esc(text);
+  if(!findings) return h;
+  findings.forEach((f,i)=>{
+    const q=esc(f.quote||"").trim(); if(q.length<12) return;
+    const idx=h.indexOf(q); if(idx<0) return;
+    h=h.slice(0,idx)+`<mark id="q${i}" class="${f.severity==="critical"?"crit":""}">`+q+"</mark>"+h.slice(idx+q.length);
+  });
+  return h;
+}
+function approvalChain(findings){
+  const steps=[]; const add=(r,why)=>{ if(!steps.find(s=>s.r===r)) steps.push({r,why}) };
+  add("ops",T("初审确认 AI 结果","Confirm the AI review"));
+  for(const f of findings){ if(f.tier!=="walk_away") continue;
+    if(f.severity==="critical"){ add("gc",T(`${f.clause} 突破底线（致命）`,`${f.clause} breaches walk-away (critical)`)); add("ceo",T("存在致命级底线突破","Critical walk-away breach present")) }
+    else if(f.severity==="high") add("gc",T(`${f.clause} 突破底线（高）`,`${f.clause} breaches walk-away (high)`));
+  }
+  for(const f of findings){ const a=String(f.approver||""); if(f.tier==="ideal") continue;
+    if(/CFO/.test(a)) add("cfo",T(`${f.clause} 付款 / 资金条款`,`${f.clause} payment / funding terms`));
+    if(/VP Sales/.test(a)) add("sales",T(`${f.clause} 商务条款`,`${f.clause} commercial terms`));
+    if(/CEO/.test(a)) add("ceo",T(`${f.clause} 低于报价底线`,`${f.clause} below pricing floor`));
+  }
+  const order=["ops","sales","cfo","gc","ceo"];
+  return steps.sort((a,b)=>order.indexOf(a.r)-order.indexOf(b.r));
+}
+function reviewPanel(ct,runLabel){
+  const rv=S.review[ct];
+  if(S.reviewing) return `<div class="card"><div class="thinking"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("AI 正在逐条对照红线清单审查，通常需要 30–90 秒…","The AI is checking each playbook position. This usually takes 30–90 seconds…"))}</div></div>`;
+  if(!rv) return `<div class="card"><h2>${esc(T("审查结果","Review results"))}</h2><p class="muted" style="margin-top:8px">${esc(T(`点击「${runLabel}」。AI 会对照红线清单，标出每条风险的等级、原文位置、修改建议和需要谁批准。`,`Click "${runLabel}". The AI checks the contract against the playbook and marks each risk's severity, location, fix and approver.`))}</p>
+    ${S.reviewErr?`<p class="src-note warn" style="margin-top:10px">${esc(S.reviewErr)}</p>`:""}</div>`;
+  const Fs=rv.findings.slice().sort((a,b)=>(SEV_ORDER[a.severity]??9)-(SEV_ORDER[b.severity]??9));
+  const counts={critical:0,high:0,medium:0,low:0}; Fs.forEach(f=>counts[f.severity]=(counts[f.severity]||0)+1);
+  const chain=approvalChain(Fs); const ap=S.approvals[ct]||{};
+  const pbIdx=Object.fromEntries(playbookFor(ct).map(p=>[p.id,p]));
+  return `
+  <div class="card">
+    <div class="card-h"><h2>${esc(T("审查结果","Review results"))}</h2><span class="row" style="gap:6px">${Object.entries(counts).filter(([,n])=>n).map(([k,n])=>pillT(tx(SEV[k][0])+" × "+n,SEV[k][1])).join("")}</span></div>
+    <p class="src-note ${rv.source==="ai"?"":"warn"}">${esc(rv.source==="ai"?T("由 AI 实时生成，是供律师复核的草稿。","Generated live by AI. A draft for attorney review."):T("当前显示预置示例结果，未调用 AI。","Showing a preset example. No AI call was made."))}${S.reviewErr?" "+esc(S.reviewErr):""}</p>
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>${esc(T("审批流转","Approval route"))}</h2><span class="faint" style="font-size:13px">${esc(T("按规则自动生成，不由 AI 决定","Built from fixed rules, not decided by AI"))}</span></div>
+    <div class="steps">${chain.map((s,i)=>{const st=ap[i];return `<div class="step ${st||""}"><span class="n">${st==="done"?"✓":st==="rej"?"✕":i+1}</span><span><b>${esc(tx(ROLE[s.r]))}</b> <span class="faint">· ${esc(pn(ROLE_POC[s.r]))}</span><br><span class="faint" style="font-size:13px">${esc(s.why)}</span></span>
+      <span class="row" style="gap:6px">${st?`<span class="faint" style="font-size:13px">${esc(st==="done"?T("已批准","Approved"):T("已退回","Returned"))}</span>`:(i===0||ap[i-1]==="done")?`<button class="btn sm" data-ap="${i}" data-v="done">${esc(T("批准","Approve"))}</button><button class="btn ghost sm" data-ap="${i}" data-v="rej">${esc(T("退回","Return"))}</button>`:`<span class="faint" style="font-size:13px">${esc(T("等待上一步","Waiting"))}</span>`}</span></div>`}).join("")}</div>
+  </div>
+  <div class="stack">${Fs.map(f=>{const p=pbIdx[f.playbook_id];const oi=rv.findings.indexOf(f);return `
+    <article class="finding">
+      <div class="hd">${pill(SEV[f.severity]||SEV.medium)}${pill(TIER[f.tier]||TIER.walk_away)}<b>${esc(f.clause)} ${esc(p?tx(p.topic):f.playbook_id)}</b>
+        <button class="btn ghost sm" data-jump="${oi}" style="margin-left:auto">${esc(T("定位原文","Show in text"))}</button></div>
+      <div><b>${esc(tx(f.issue))}</b></div>
+      <div class="why">${esc(tx(f.why))}</div>
+      ${f.quote?`<div class="quote">${esc(f.quote)}</div>`:""}
+      ${f.redline?`<div class="redline">${esc(f.redline)}</div>`:""}
+      <div class="row faint" style="font-size:13px;justify-content:space-between"><span>${p?esc(T("底线：","Walk-away: ")+tx(p.walk)):""}</span><span>${esc(T("审批：","Approver: "))}${esc(roleName(f.approver||(p?tx(p.auth):"")))}</span></div>
+    </article>`}).join("")}</div>`;
+}
+function reviewPrompt(text, pbk){
+  const pb=PLAYBOOKS[pbk];
+  return `You are assisting the in-house legal team of ${CO.name}, a US company that provides Employer of Record (EOR) services and executive search. HQ: California. Employees in CA, NY, TX, IL. ${CO.tools}
+We are the ${pbk==="eor"?"Provider (the EOR / legal employer)":"Agency (the recruiting firm)"}. The counterparty drafted the contract below.
+
+Review the contract against OUR PLAYBOOK. For each playbook position, decide where the contract lands:
+- "ideal": meets our ideal position (do NOT include these in the output)
+- "acceptable": within our acceptable range
+- "walk_away": breaches our walk-away line
+- "missing": the contract has no clause on a position that matters
+Apply US law (federal and the relevant state law). Do not invent facts about the parties.
+
+PLAYBOOK (JSON):
+${JSON.stringify(pb.map(p=>({id:p.id,topic:p.topic.en,severity:p.sev,ideal:p.ideal.en,acceptable:p.acceptable.en,walk_away:p.walk.en,approver:p.auth.en})))}
+
+CONTRACT:
+"""
+${text.slice(0,24000)}
+"""
+
+Reply with ONLY a JSON array. Each item:
+{"playbook_id": string (from the playbook), "clause": "§N" or "missing", "tier": "acceptable"|"walk_away"|"missing", "severity": "critical"|"high"|"medium"|"low", "quote": exact verbatim excerpt (<=200 chars) copied from the contract, or "" if missing, "issue": one-line summary in ${outLang()} (short), "why": 1-2 sentences in ${outLang()} explaining the risk to us, citing specific US statutes where relevant, "redline": replacement clause in English that would meet our ideal or acceptable position, "approver": the approver from the playbook (in English)}
+Order by severity, most severe first.`;
+}
+async function runReview(){
+  const ct=S.ctype; const pbk=pbKey(ct);
+  if(ct==="custom"){ S.texts.custom=$("#customText")?.value||""; if(S.texts.custom.trim().length<80){ S.reviewErr=T("请先粘贴至少几段合同文本。","Paste at least a few paragraphs of contract text first."); render(); return } }
+  S.reviewErr="";
+  if(!sample){
+    if(ct==="custom"){ S.reviewErr=T("AI 不可用，自定义合同无法审查。可以切换到两份示例合同查看预置结果。","AI is unavailable, so a custom contract cannot be reviewed. Switch to a sample contract to see a preset review."); render(); return }
+    S.review[ct]={findings:PRESET[ct],source:"preset"}; S.approvals[ct]={}; render(); return;
+  }
+  S.reviewing=true; S.reviewCtl=new AbortController(); render();
+  try{
+    const out=await sample.json(reviewPrompt(S.texts[ct],pbk),{signal:S.reviewCtl.signal,modelTier:"default"});
+    const arr=(Array.isArray(out)?out:[]).filter(f=>f&&typeof f==="object"&&f.tier!=="ideal").map(f=>({
+      playbook_id:String(f.playbook_id||""),clause:String(f.clause||""),tier:TIER[f.tier]?f.tier:"walk_away",severity:SEV[f.severity]?f.severity:"medium",
+      quote:String(f.quote||""),issue:String(f.issue||""),why:String(f.why||""),redline:String(f.redline||""),approver:String(f.approver||"")}));
+    if(!arr.length) throw {code:"empty_completion"};
+    S.review[ct]={findings:arr,source:"ai"}; S.approvals[ct]={};
+  }catch(e){
+    if(e?.code!=="cancelled"){ aiDown(e); S.reviewErr=errMsg(e);
+      if(ct!=="custom"&&!S.review[ct]) S.review[ct]={findings:PRESET[ct],source:"preset"}; }
+  }finally{ S.reviewing=false; S.reviewCtl=null; render(); }
+}
+function bindContracts(){
+  document.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{ if(S.reviewing) return; S.ctype=b.dataset.ct; ls.set("ctype",S.ctype); S.reviewErr=""; render() });
+  bindUpload();
+  $("#customReq")&&($("#customReq").onchange=e=>{S.customReq=e.target.value;render()});
+  $("#runReview")&&($("#runReview").onclick=runReview);
+  $("#stopReview")&&($("#stopReview").onclick=()=>S.reviewCtl?.abort());
+  $("#customKind")&&($("#customKind").onchange=e=>{S.texts.custom=$("#customText").value;S.customKind=e.target.value;render()});
+  $("#customText")&&($("#customText").oninput=e=>{S.texts.custom=e.target.value});
+  document.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{ const ap=S.approvals[S.ctype]||(S.approvals[S.ctype]={}); ap[+b.dataset.ap]=b.dataset.v; render() });
+  document.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{ const m=$("#q"+b.dataset.jump); if(!m) return; m.scrollIntoView({behavior:"smooth",block:"center"}); m.classList.add("flash"); setTimeout(()=>m.classList.remove("flash"),1400) });
+}
+
+/* ============ VIEW: COMPLIANCE — shared head + law radar ============ */
+function regionGaps(k){ let g=0; const RR=REGIONS[k]; for(const s of RR.cols) for(const t of RR.topics){ if(S.toggles[t.tog]&&RR.mx[s.k][t.k].s==="gap") g++ } return g }
+function complianceHead(){
+  const n=countNewUpdates();
+  return `
+  <div class="page-head"><div><span class="eyebrow">${esc(T("模块 02","Module 02"))}</span><h1>${esc(T("合规框架","Compliance framework"))}</h1>
+  <p class="lead">${esc(T("两张矩阵写清每条义务的规则、法律依据、负责人和核实日期；法规动态雷达在新法、修正案和判例出台时标出受影响的条目。","Two matrices set out each obligation's rule, source, owner and last-verified date; the law radar flags affected entries when new laws, amendments and rulings land."))}</p></div></div>
+  <div class="row">
+    <div class="seg" role="group" aria-label="${esc(T("合规范围","Compliance scope"))}">
+      <button data-scope="us" aria-pressed="${S.scope==="us"}">${esc(T("美国各州","US states"))}${regionGaps("us")?` · ${regionGaps("us")} ${esc(T("缺口","gaps"))}`:""}</button>
+      <button data-scope="intl" aria-pressed="${S.scope==="intl"}">${esc(T("国际与数据保护","International & data protection"))}${regionGaps("intl")?` · ${regionGaps("intl")} ${esc(T("缺口","gaps"))}`:""}</button>
+      <button data-scope="radar" aria-pressed="${S.scope==="radar"}">${esc(T("法规动态雷达","Law radar"))}${n?` · ${n} ${esc(T("待评估","to assess"))}`:""}</button>
+    </div>
+  </div>`;
+}
+function relatedUpdates(r,c,t){
+  const us=updatesFor(r,c,t); if(!us.length) return "";
+  return `<div class="stack" style="margin-top:14px;gap:6px"><b style="font-size:13px">${esc(T("相关法规动态","Related developments"))}</b>${us.map(u=>`<button class="cellchip" data-goupd="${u.id}" style="text-align:left;padding:6px 8px">${pill(USTATUS[u.status])} <span class="mono">${u.date}</span> ${esc(tx(u.title))}</button>`).join("")}</div>`;
+}
+const en = v => (v && typeof v==="object" && "en" in v) ? v.en : (v||"");
+const allCellKeys = () => { const out=[]; for(const [r,R] of Object.entries(REGIONS)) for(const c of R.cols) for(const t of R.topics) out.push(`${r}|${c.k}|${t.k}`); return out };
+const isUSJur = j => ["CA","NY","TX","IL","CO"].includes(j);
+function updCard(u){
+  const ai=S.updAi[u.id+L];
+  return `<article class="upd ${u.status==="new"?"new":""} ${S.focusUpd===u.id?"focus":""}" id="upd-${u.id}">
+    <div class="meta">${pill(UTYPE[u.type]||UTYPE.law)}<span class="tag">${esc(tx(JURNAME[u.jur])||u.jur)}</span><span class="mono">${esc(u.date)}</span>${pill(USTATUS[u.status])}${u.ai?pillT(T("AI 解析，待人工确认","AI-parsed, unconfirmed"),"p-med"):""}<span>${esc(T("法务对接：","Legal POC: "))}${esc(pn(u.poc||"elena"))}</span></div>
+    <h3>${esc(tx(u.title))}</h3>
+    <p style="font-size:14px">${esc(tx(u.sum))}</p>
+    <div class="impact"><b>${esc(T("对我们的影响：","What it means for us: "))}</b>${esc(tx(u.impact))}</div>
+    <div class="row" style="gap:6px"><span class="faint" style="font-size:13px">${esc(T("影响矩阵：","Matrix entries: "))}</span>${u.cells.length?u.cells.map(k=>`<button class="cellchip" data-gocell="${k}">${esc(cellKeyLabel(k))}</button>`).join(""):`<span class="faint" style="font-size:13px">${esc(T("当前矩阵未覆盖","Not covered by the matrix"))}</span>`}</div>
+    <div class="row" style="justify-content:space-between"><span class="mono faint" style="font-size:12px">${esc(tx(u.src))}</span>
+      <span class="row" style="gap:6px">
+        ${sample?`<button class="btn sm accent" data-assess="${u.id}" ${S.updBusy?"disabled":""}>${esc(T("AI 影响评估","AI impact check"))}</button>`:""}
+        ${u.status==="new"?`<button class="btn ghost sm" data-mark="${u.id}|reviewed">${esc(T("标记已评估","Mark assessed"))}</button>${u.cells.length?`<button class="btn ghost sm" data-mark="${u.id}|applied">${esc(T("已据此更新矩阵","Matrix updated"))}</button>`:""}`:""}
+      </span></div>
+    ${S.updBusy===u.id?`<div class="thinking" style="padding:4px 0"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("AI 正在评估…","AI is assessing…"))}</div>`:""}
+    ${ai?`<div class="ai-out">${esc(ai)}</div><p class="faint" style="font-size:12px">${esc(T("AI 草稿，需法务确认。","AI draft; Legal confirms."))}</p>`:""}
+  </article>`;
+}
+function vRadar(){
+  let list=UPDATES.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(S.radarJur!=="all") list=list.filter(u=>S.radarJur==="us"?isUSJur(u.jur):!isUSJur(u.jur));
+  if(S.radarStatus!=="all") list=list.filter(u=>S.radarStatus==="new"?u.status==="new":u.status!=="new");
+  const nNew=countNewUpdates(), nDone=UPDATES.length-nNew;
+  const touched=new Set(UPDATES.filter(u=>u.status==="new").flatMap(u=>u.cells)).size;
+  const seg=(attr,cur,opts)=>`<div class="seg" role="group">${opts.map(([k,l])=>`<button ${attr}="${k}" aria-pressed="${cur===k}">${esc(l)}</button>`).join("")}</div>`;
+  const SOURCES=[[T("美国各州立法","US state bills"),T("州议会网站、LegiScan 法案追踪","State legislature sites, LegiScan")],[T("美国判例","US case law"),"CourtListener"],[T("欧盟","EU"),T("EUR-Lex、欧盟法院（CURIA）、EDPB 指南","EUR-Lex, CURIA, EDPB guidance")],[T("英国","UK"),T("ICO 指南、legislation.gov.uk","ICO guidance, legislation.gov.uk")],[T("加拿大","Canada"),T("安大略 e-Laws、隐私专员公署","Ontario e-Laws, Privacy Commissioner")],[T("行业动态","Industry news"),"IAPP"]];
+  return `
+  <div class="grid-8-4">
+    <section class="stack" style="min-width:0">
+      <div class="card">
+        <div class="card-h"><h2>${esc(T("隐私法动态雷达","Privacy-law radar"))}</h2><span class="tag">${esc(T("特色功能","Signature feature"))}</span></div>
+        <p class="muted">${esc(T("新法、修正案、判例和监管规则出台时，对照合规矩阵标出受影响的条目；AI 评估影响，人确认后更新矩阵并刷新核实日期。","When laws, amendments, rulings or regulations land, the radar flags the affected matrix entries; AI assesses the impact, and once a person confirms, the matrix and its verified date update."))}</p>
+        <div class="row" style="margin-top:12px">
+          ${seg("data-rjur",S.radarJur,[["all",T("全部辖区","All")],["us",T("美国各州","US states")],["intl",T("国际","International")]])}
+          ${seg("data-rstat",S.radarStatus,[["all",T("全部状态","Any status")],["new",T("待评估","To assess")],["done",T("已处理","Handled")]])}
+        </div>
+        <p class="src-note warn" style="margin-top:12px">${esc(T("示例动态取自 2023–2026 年已公开的立法和判例，用于演示；每条都需核实最新进展。正式版从右侧数据源自动同步。","Sample entries are public laws and rulings from 2023–2026, for demonstration; verify each for later changes. The production version syncs from the sources listed at right."))}</p>
+      </div>
+      ${list.map(updCard).join("")||`<div class="card muted">${esc(T("没有符合筛选条件的动态。","No developments match these filters."))}</div>`}
+    </section>
+    <aside class="stack" style="min-width:0">
+      <section class="card">
+        <h2>${esc(T("概览","Overview"))}</h2>
+        <dl class="kv" style="margin-top:10px;grid-template-columns:150px minmax(0,1fr)"><dt>${esc(T("待评估","To assess"))}</dt><dd class="num"><b>${nNew}</b></dd><dt>${esc(T("已处理","Handled"))}</dt><dd class="num">${nDone}</dd><dt>${esc(T("受影响的矩阵条目","Matrix entries affected"))}</dt><dd class="num">${touched}</dd></dl>
+        <p class="faint" style="font-size:13px;margin-top:8px">${esc(T("矩阵中带“● 新动态”的格子有待评估的动态。","Matrix cells marked “● New” have developments to assess."))}</p>
+      </section>
+      <section class="card">
+        <h2>${esc(T("粘贴新动态","Add a development"))}</h2>
+        <p class="faint" style="font-size:13px;margin:4px 0 10px">${esc(T("粘贴法规条文、判决摘要或新闻，AI 解析后加入时间线，并标出受影响的矩阵条目。","Paste a statute, ruling summary or news item; AI adds it to the timeline and maps the affected matrix entries."))}</p>
+        ${sample?`<label class="f" for="pasteIn">${esc(T("原文","Text"))}<textarea id="pasteIn" rows="6" placeholder="${esc(T("例如：某州通过的新隐私法条文…","e.g. the text of a new state privacy law…"))}">${esc(S.pasteText)}</textarea></label>
+        <div class="row" style="margin-top:10px"><button class="btn accent sm" id="pasteBtn" ${S.pasteBusy?"disabled":""}>${esc(T("AI 解析并加入","Parse with AI"))}</button></div>
+        ${S.pasteBusy?`<div class="thinking"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("AI 正在解析…","AI is parsing…"))}</div>`:""}
+        ${S.pasteMsg?`<p class="src-note" style="margin-top:10px">${esc(S.pasteMsg)}</p>`:""}`
+        :`<p class="src-note warn">${esc(T("AI 不可用时无法解析新动态。","AI is unavailable, so new text cannot be parsed."))}</p>`}
+      </section>
+      <section class="card">
+        <h2>${esc(T("数据源（正式版规划）","Sources (production plan)"))}</h2>
+        <div class="stack" style="margin-top:10px;gap:8px">${SOURCES.map(([a,b])=>`<div style="font-size:14px"><b>${esc(a)}</b><br><span class="faint">${esc(b)}</span></div>`).join("")}</div>
+        <p class="faint" style="font-size:13px;margin-top:10px">${esc(T("每天同步，只推送适用性画像中相关的辖区。","Synced daily; only jurisdictions in the applicability profile are pushed."))}</p>
+      </section>
+    </aside>
+  </div>`;
+}
+function bindRadar(){
+  document.querySelectorAll("[data-rjur]").forEach(b=>b.onclick=()=>{S.radarJur=b.dataset.rjur;render()});
+  document.querySelectorAll("[data-rstat]").forEach(b=>b.onclick=()=>{S.radarStatus=b.dataset.rstat;render()});
+  document.querySelectorAll("[data-gocell]").forEach(b=>b.onclick=()=>{const [r,c,t]=b.dataset.gocell.split("|");S.scope=r;ls.set("scope",r);S.cell={r,s:c,t};render();window.scrollTo(0,0)});
+  document.querySelectorAll("[data-goupd]").forEach(b=>b.onclick=()=>{S.scope="radar";S.focusUpd=b.dataset.goupd;S.radarJur="all";S.radarStatus="all";render();const el=$("#upd-"+S.focusUpd);if(el)el.scrollIntoView({behavior:"smooth",block:"center"})});
+  document.querySelectorAll("[data-mark]").forEach(b=>b.onclick=()=>{const [id,st]=b.dataset.mark.split("|");const u=UPDATES.find(x=>x.id===id);if(!u)return;u.status=st;if(st==="applied"){for(const k of u.cells){const [r,c,t]=k.split("|");REGIONS[r].mx[c][t].verified="2026-11-02"}}render()});
+  document.querySelectorAll("[data-assess]").forEach(b=>b.onclick=async()=>{
+    const u=UPDATES.find(x=>x.id===b.dataset.assess); if(!u||!sample) return;
+    S.updBusy=u.id; render();
+    const cells=u.cells.map(k=>{const [r,c,t]=k.split("|");const m=REGIONS[r].mx[c][t];return `[${k}] ${en(m.rule)} (source: ${en(m.cite)}; status: ${en(STATUS[m.s][0])}${m.note?"; note: "+en(m.note):""})`}).join("\n")||"(none: not covered by the current matrix)";
+    try{
+      const {text}=await sample(`You support the in-house legal team of ${CO.name} (${CO.biz.en}; HQ California; workers in CA, NY, TX, IL; EOR in the UK and Ontario; Germany launching; sources candidates from the EU). ${CO.tools}
+A legal development:
+Date: ${u.date}; jurisdiction: ${u.jur}; type: ${u.type}
+Title: ${en(u.title)}
+Summary: ${en(u.sum)}
+Source: ${en(u.src)}
+Compliance matrix entries it may affect:
+${cells}
+Write in ${outLang()}, plain text, no Markdown headings or bold, under ${L==="en"?"170 words":"260 Chinese characters"}:
+1. Does it affect us, and how much (high / medium / low)?
+2. Which matrix entries should change, and how
+3. Actions, each with an owner (Legal, Recruiting, Product, IT, HR, Payroll)
+4. Whether outside counsel is needed
+Use only the facts given; say what needs verification.`,{modelTier:"default"});
+      S.updAi[u.id+L]=text;
+    }catch(e){ aiDown(e); S.updAi[u.id+L]=errMsg(e) }
+    finally{ S.updBusy=null; render() }
+  });
+  const pi=$("#pasteIn"); if(pi) pi.oninput=()=>{S.pasteText=pi.value};
+  $("#pasteBtn")&&($("#pasteBtn").onclick=async()=>{
+    S.pasteText=$("#pasteIn").value; if(S.pasteText.trim().length<40){S.pasteMsg=T("请粘贴至少一段原文。","Paste at least a paragraph.");render();return}
+    S.pasteBusy=true; S.pasteMsg=""; render();
+    const keys=allCellKeys();
+    try{
+      const out=await sample.json(`A user pasted text about a new law, amendment, regulation, court ruling or guidance. Classify it for the legal team of a US EOR and recruiting company (workers in CA, NY, TX, IL; EOR in the UK, Ontario, Germany; EU candidates).
+Matrix cells it may affect (key: label):
+${keys.map(k=>{const [r,c,t]=k.split("|");return `${k}: ${c} ${REGIONS[r].topics.find(x=>x.k===t).n.en}`}).join("\n")}
+Text:
+"""
+${S.pasteText.slice(0,12000)}
+"""
+Reply with ONLY JSON: {"date": "YYYY-MM-DD" or "" if not stated, "jur": one of "EU","UK","DE","ON","CA","NY","TX","IL","CO","OTHER", "type": one of "law","amend","case","reg","proposal", "title": short title in ${outLang()}, "summary": 1-2 sentences in ${outLang()}, "impact": 1-2 sentences in ${outLang()} on what it means for this company, "cells": array of matrix keys from the list that it affects (may be empty)}
+Use only facts in the text.`,{modelTier:"default"});
+      const id="p"+Date.now();
+      const u=U(id,/^\d{4}-\d{2}-\d{2}$/.test(out?.date||"")?out.date:"2026-11-02",JURNAME[out?.jur]?out.jur:"OTHER",UTYPE[out?.type]?out.type:"law",String(out?.title||T("未命名动态","Untitled development")),String(out?.summary||""),String(out?.impact||""),(Array.isArray(out?.cells)?out.cells:[]).filter(k=>keys.includes(k)),T("用户粘贴，AI 解析","Pasted text, parsed by AI"),"new");
+      u.ai=true; UPDATES.push(u); S.focusUpd=id; S.radarJur="all"; S.radarStatus="all"; S.pasteText="";
+      S.pasteMsg=T("已加入时间线，请核对 AI 的解析结果。","Added to the timeline. Check the AI's reading.");
+    }catch(e){ aiDown(e); S.pasteMsg=errMsg(e) }
+    finally{ S.pasteBusy=false; render(); const el=$("#upd-"+S.focusUpd); if(el) el.scrollIntoView({behavior:"smooth",block:"center"}) }
+  });
+}
+
+/* ============ VIEW: COMPLIANCE ============ */
+function vCompliance(){
+  if(S.scope==="radar") return complianceHead()+vRadar();
+  const R=REGIONS[S.scope]; const sel=(S.cell&&S.cell.r===S.scope)?S.cell:null;
+  const cell=sel?R.mx[sel.s][sel.t]:null; const topic=sel?R.topics.find(t=>t.k===sel.t):null; const st=sel?R.cols.find(s=>s.k===sel.s):null;
+  const TG=[["recruiting",T("提供猎头 / 招聘服务","We provide recruiting services")],["eor",T("在美国提供 EOR 服务（我方为法定雇主）","We provide EOR in the US (we are the legal employer)")],["ai",T("使用 AI 筛选简历或面试","We use AI to screen resumes or interviews")],["bio",T("员工使用指纹 / 人脸打卡","Workers use fingerprint or face time clocks")],["intlData",T("处理欧盟 / 英国 / 加拿大候选人或员工数据","We handle EU, UK or Canadian candidate or worker data")],["intlEor",T("在海外提供 EOR（英国、德国、安大略）","We provide EOR abroad (UK, Germany, Ontario)")]];
+  const aiKey = sel ? S.scope+sel.s+sel.t+L : "";
+  const colHead = s => `<div class="ch">${s.k}<small>${esc(tx(s.n))} · ${s.emp!=null?esc(T(`${s.emp} 人`,`${s.emp} staff`)):esc(tx(s.sub))}</small></div>`;
+  const regionCounts = k => { let g=0; const RR=REGIONS[k]; for(const s of RR.cols) for(const t of RR.topics){ if(S.toggles[t.tog]&&RR.mx[s.k][t.k].s==="gap") g++ } return g };
+  const xr = transferCheck(S.xfer);
+  const sideCard = S.scope==="us" ? `
+      <section class="card">
+        <h2>${esc(T("联邦基线（所有州适用）","Federal baseline (all states)"))}</h2>
+        <div class="stack" style="margin-top:10px;gap:8px">${FEDERAL.map(f=>`<div style="font-size:14px"><b>${esc(f[0])}</b> · ${esc(tx(f[1]))}<br><span class="mono faint">${esc(f[2])}</span></div>`).join("")}</div>
+      </section>` : `
+      <section class="card">
+        <h2>${esc(T("跨境数据传输检查","Cross-border transfer check"))}</h2>
+        <p class="faint" style="font-size:13px;margin:4px 0 10px">${esc(T("数据传到美国时需要哪种机制。按固定规则判定，不用 AI。","Which mechanism a transfer to the US needs. Decided by fixed rules, not AI."))}</p>
+        <div class="stack">
+          <label class="f" for="xFrom">${esc(T("数据来源","Data comes from"))}<select id="xFrom">${Object.entries(XFROM).map(([k,v])=>`<option value="${k}" ${S.xfer.from===k?"selected":""}>${esc(tx(v))}</option>`).join("")}</select></label>
+          <label class="f" for="xRec">${esc(T("美国接收方","US recipient"))}<select id="xRec" ${S.xfer.from==="ON"?"disabled":""}>${Object.entries(XREC).map(([k,v])=>`<option value="${k}" ${S.xfer.rec===k?"selected":""}>${esc(tx(v))}</option>`).join("")}</select></label>
+          <label class="f" for="xData">${esc(T("数据类型","Data type"))}<select id="xData">${Object.entries(XDATA).map(([k,v])=>`<option value="${k}" ${S.xfer.data===k?"selected":""}>${esc(tx(v))}</option>`).join("")}</select></label>
+          <div class="triage">
+            <div class="row">${pillT(xr.ok?T("可直接传输","Can transfer"):T("传输前须补齐措施","Fix before transfer"),xr.ok?"p-ok":"p-med")}<span class="mono faint">${esc(xr.cite)}</span></div>
+            <b>${esc(xr.mech)}</b>
+            <ul style="margin:0;padding-left:18px;font-size:14px">${xr.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ul>
+          </div>
+        </div>
+      </section>`;
+  return `${complianceHead()}
+  <div class="grid-8-4">
+    <section class="card" style="min-width:0">
+      <div class="card-h"><h2>${esc(S.scope==="us"?T("美国多州合规矩阵","US multi-state matrix"):T("国际合规矩阵（GDPR + 海外 EOR）","International matrix (GDPR + EOR abroad)"))}</h2>
+        <div class="legend">${Object.values(STATUS).map(v=>`<span><i class="${v[1]}"></i>${esc(tx(v[0]))}</span>`).join("")}<span>⟳ ${esc(T("需复核","Review due"))}</span></div></div>
+      <div class="tbl-wrap"><div class="mx">
+        <div></div>${R.cols.map(colHead).join("")}
+        ${R.topics.map(t=>{const on=S.toggles[t.tog];return `<div class="rh ${on?"":"row-off"}">${esc(tx(t.n))}<small>${on?esc(tx(t.d)):esc(T("不适用（见右侧画像）","Not applicable (see profile)"))}</small></div>`+
+          R.cols.map(s=>{const c=R.mx[s.k][t.k];const pressed=sel&&sel.s===s.k&&sel.t===t.k;const stl=c.s!=="none"&&stale(c.verified);
+            return `<div class="${on?"":"row-off"}"><button class="cell ${STATUS[c.s][1]}" data-cell="${s.k}|${t.k}" aria-pressed="${!!pressed}" aria-label="${s.k} ${esc(tx(t.n))}: ${esc(tx(STATUS[c.s][0]))}">${esc(tx(STATUS[c.s][0]))}${stl?" ⟳":""}${updatesFor(S.scope,s.k,t.k).some(u=>u.status==="new")?`<span class="newdot">● ${esc(T("新动态","New"))}</span>`:""}<span class="st">${esc(T(`${c.verified.slice(5).replace("-","/")} 核实`,`Verified ${md(c.verified)}`))}</span></button></div>`}).join("")}).join("")}
+      </div></div>
+    </section>
+    <aside class="stack" style="min-width:0">
+      <section class="card">
+        ${cell?`<div class="card-h"><h2>${st.k} · ${esc(tx(topic.n))}</h2><span class="${STATUS[cell.s][1]} pill">${esc(tx(STATUS[cell.s][0]))}</span></div>
+        <p>${esc(tx(cell.rule))}</p>
+        <dl class="kv" style="margin-top:12px"><dt>${esc(T("法律依据","Legal source"))}</dt><dd class="mono">${esc(tx(cell.cite))}</dd><dt>${esc(T("负责人","Owner"))}</dt><dd>${esc(tx(OWN[cell.owner]))} · ${esc((OWN_POC[cell.owner]||[]).map(pn).join("、"))}</dd>
+          <dt>${esc(T("最后核实","Last verified"))}</dt><dd>${cell.verified} ${esc(T(`（${daysSince(cell.verified)} 天前）`,`(${daysSince(cell.verified)} days ago)`))}${cell.s!=="none"&&stale(cell.verified)?" "+pillT(T("需复核","Review due"),"p-med"):""}</dd>
+          ${cell.note?`<dt>${esc(T("当前情况","Status note"))}</dt><dd>${esc(tx(cell.note))}</dd>`:""}</dl>
+        ${relatedUpdates(S.scope,sel.s,sel.t)}
+        <div class="row" style="margin-top:14px">
+          <button class="btn ghost sm" id="markVerified">${esc(T("标记为今天已核实","Mark verified today"))}</button>
+          ${sample&&cell.s!=="none"?`<button class="btn sm accent" id="explain" ${S.cellBusy?"disabled":""}>${esc(T("给业务同事的说明","Explain for the business"))}</button>`:""}
+        </div>
+        ${S.cellBusy?`<div class="thinking"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("生成中…","Writing…"))}</div>`:""}
+        ${S.cellAi[aiKey]?`<div class="ai-out" style="margin-top:12px">${esc(S.cellAi[aiKey])}</div><p class="faint" style="font-size:13px;margin-top:6px">${esc(T("AI 草稿，发布前请法务确认。","AI draft. Legal confirms before sharing."))}</p>`:""}`
+        :`<h2>${esc(T("义务详情","Obligation details"))}</h2><p class="muted" style="margin-top:8px">${esc(T("点击矩阵中的任意一格，查看规则、法律依据、负责人和核实状态。","Click any cell to see the rule, legal source, owner and verification status."))}</p>`}
+      </section>
+      ${sideCard}
+      <section class="card">
+        <h2>${esc(T("适用性画像","Applicability profile"))}</h2><p class="faint" style="font-size:13px;margin:4px 0 6px">${esc(T("回答这几个问题，两张矩阵会自动隐藏不适用的义务。","Answer these and both matrices hide obligations that do not apply."))}</p>
+        ${TG.map(([k,l])=>`<div class="toggle"><span>${esc(l)}</span><button class="sw" role="switch" aria-checked="${!!S.toggles[k]}" data-tg="${k}" aria-label="${esc(l)}"></button></div>`).join("")}
+      </section>
+    </aside>
+  </div>`;
+}
+function bindCompliance(){
+  bindRadar();
+  document.querySelectorAll("[data-scope]").forEach(b=>b.onclick=()=>{S.scope=b.dataset.scope;ls.set("scope",S.scope);render()});
+  document.querySelectorAll("[data-cell]").forEach(b=>b.onclick=()=>{const [s,t]=b.dataset.cell.split("|");S.cell={r:S.scope,s,t};render()});
+  document.querySelectorAll("[data-tg]").forEach(b=>b.onclick=()=>{S.toggles[b.dataset.tg]=!S.toggles[b.dataset.tg];ls.set("toggles",S.toggles);render()});
+  ["xFrom","xRec","xData"].forEach(id=>{const el=$("#"+id); if(el) el.onchange=()=>{S.xfer={from:$("#xFrom").value,rec:$("#xRec").value,data:$("#xData").value};render()}});
+  $("#markVerified")&&($("#markVerified").onclick=()=>{REGIONS[S.cell.r].mx[S.cell.s][S.cell.t].verified="2026-11-02";render()});
+  $("#explain")&&($("#explain").onclick=async()=>{
+    const {r,s,t}=S.cell; const R=REGIONS[r]; const c=R.mx[s][t]; const tp=R.topics.find(x=>x.k===t); const col=R.cols.find(x=>x.k===s); const key=r+s+t+L;
+    S.cellBusy=true; render();
+    try{
+      const {text}=await sample(`You write internal guidance for the legal team of a US EOR and recruiting company. Readers are recruiters and account managers, not lawyers.
+Jurisdiction: ${s} (${typeof col.n==="object"?col.n.en:col.n}) · Topic: ${tp.n.en}
+Rule: ${c.rule.en}
+Legal source: ${typeof c.cite==="object"?c.cite.en:c.cite}
+Current status: ${c.note?c.note.en:"none"}
+Write in ${outLang()}, plain text, no Markdown headings or bold:
+1. One sentence on what this rule covers
+2. "Do" — 3 bullets
+3. "Don't" — 3 bullets
+4. When to contact Legal
+Keep each bullet short and concrete. Do not cite any section numbers beyond the legal source given.`,{modelTier:"quick"});
+      S.cellAi[key]=text;
+    }catch(e){ aiDown(e); S.cellAi[key]=errMsg(e) }
+    finally{ S.cellBusy=false; render() }
+  });
+}
+
+/* ============ VIEW: INTAKE ============ */
+const QUICKQ=[B("纽约的候选人主动说了上家薪资，我能用来定 offer 吗？","A New York candidate volunteered their last salary. Can I use it to set the offer?"),
+ B("客户要我们明天解雇一名加州员工，我该怎么做？","A client wants us to fire a California worker tomorrow. What do I do?"),
+ B("德州的职位发布需要写薪资范围吗？","Do Texas job posts need a pay range?"),
+ B("伊利诺伊客户现场用指纹打卡，我们要做什么？","An Illinois client site uses fingerprint clocks. What do we need to do?")];
+const PRESET_CHAT={
+ zh:[{role:"user",content:"纽约的候选人主动说了上家薪资，我能用来定 offer 吗？"},{role:"assistant",content:"不能用来定薪。\n\n纽约州禁止雇主依据薪资历史决定录用或薪酬 [NY-禁问薪资历史]。候选人主动透露、且没有被你引导时，法律允许候选人用它来谈判，但我们不能把它作为定薪依据。\n\n建议做法：\n· 按岗位已公布的薪资范围出价 [LP-07]\n· 在笔记里不要记录候选人的历史薪资\n\n如果客户坚持参考历史薪资，请提交需求给法务。"}],
+ en:[{role:"user",content:"A New York candidate volunteered their last salary. Can I use it to set the offer?"},{role:"assistant",content:"No, don't use it to set pay.\n\nNew York bars employers from relying on salary history for hiring or pay decisions [NY-Salary history ban]. A candidate may raise it voluntarily to negotiate, but we cannot base the offer on it.\n\nWhat to do:\n· Offer within the posted pay range [LP-07]\n· Don't record the candidate's past salary in notes\n\nIf the client insists on using salary history, submit a request to Legal."}]};
+function triageRules(d){
+  const txt=(d.title+" "+d.desc).toLowerCase(); const r=[]; let type="general",pri="low",sla=T("72 小时","72 h"),owner=T("法务（综合）","Legal (general)"),ext=false;
+  const hit=(re,why)=>{ if(re.test(txt)){ r.push(why); return true } return false };
+  if(hit(/起诉|诉讼|仲裁|paga|demand letter|律师函|lawsuit|arbitration|eeoc|sue\b/,T("命中「诉讼 / 仲裁 / PAGA」关键词","Matched litigation / arbitration / PAGA keywords"))){type="dispute";pri="crit";sla=T("4 小时","4 h");owner=T("法务负责人","General Counsel");ext=true}
+  else if(hit(/解雇|辞退|terminat|裁员|layoff|\bfire|dismiss/,T("命中「解雇」关键词","Matched termination keywords"))){type="employment";pri="high";sla=T("24 小时","24 h");owner=T("法务（雇佣）","Legal (employment)")}
+  else if(hit(/签证|h-1b|h1b|i-9|绿卡|perm|visa|green card/,T("命中「签证 / 移民」关键词","Matched visa / immigration keywords"))){type="immigration";pri="med";sla=T("72 小时","72 h");owner=T("法务（雇佣）","Legal (employment)");ext=true}
+  else if(hit(/合同|协议|msa|sow|nda|dpa|agreement|contract/,T("命中「合同」关键词","Matched contract keywords"))){type="contract";pri="med";sla=T("48 小时","48 h");owner=T("法务（商务）","Legal (commercial)")}
+  else if(hit(/隐私|数据|bipa|gdpr|跨境|欧盟|英国|德国|加拿大|指纹|\bai\b|偏见|审计|合规|privacy|data|biometric|fingerprint|bias|audit|compliance|cross-border|\beu\b|\buk\b|germany|canada/,T("命中「合规 / 数据 / AI」关键词","Matched compliance / data / AI keywords"))){type="compliance";pri="med";sla=T("48 小时","48 h");owner=T("法务（合规）","Legal (compliance)")}
+  const amt=Number(d.amount)||0;
+  if(amt>=100000){ r.push(T(`金额 ${money(amt)} ≥ $100,000，优先级上调`,`Amount ${money(amt)} ≥ $100,000: priority raised`)); if(pri==="low"||pri==="med") pri="high" }
+  if(d.state==="CA"&&type==="employment"){ r.push(T("加州雇佣事务：解雇当日须结清工资，期限压缩为 12 小时","California employment matter: final pay is due on the termination day, so the deadline drops to 12 h")); sla=T("12 小时","12 h"); if(pri!=="crit") pri="high" }
+  if(ext) r.push(T("建议使用外部律所（见模块 04）","Consider outside counsel (see Module 04)"));
+  if(!r.length) r.push(T("未命中特定规则，按一般咨询处理","No specific rule matched; handled as a general question"));
+  return {type,pri,sla,owner,ownerId:TYPE_OWNER[type],rules:r};
+}
+function defaultForm(){ return {req:"taylor",state:"CA",title:T("客户要求解雇一名 EOR 员工","Client asks us to terminate an EOR worker"),desc:T("Brightwave AI 说这名工程师表现不好，要求我们明天让他离职。员工上周刚提出过加班费的问题。","Brightwave AI says this engineer is underperforming and wants him gone tomorrow. Last week the worker raised a question about unpaid overtime."),amount:"",lang:L,pristine:true} }
+function vIntake(){
+  if(!S.form || (S.form.pristine && S.form.lang!==L)) S.form=defaultForm();
+  const fm=S.form;
+  const cols=["new","review","approval","outside"];
+  const chat=S.chat.length?S.chat:PRESET_CHAT[L];
+  const canChat = sample && !S.chatBusy;
+  return `
+  <div class="page-head"><div><span class="eyebrow">${esc(T("模块 03","Module 03"))}</span><h1>${esc(T("部门协作","Team requests"))}</h1>
+  <p class="lead">${esc(T("业务同事在这里问问题、提需求。常见问题由 AI 依据公司制度和合规矩阵带出处回答；需要法务处理的事项按规则自动分流，进度全员可见。","Colleagues ask questions and file requests here. The AI answers common questions from company policy and the compliance matrix, with sources. Work that needs Legal is routed by fixed rules, and everyone can see progress."))}</p></div></div>
+  <div class="grid2">
+    <section class="card" style="display:flex;flex-direction:column;gap:12px">
+      <div class="card-h" style="margin:0"><h2>${esc(T("问法务","Ask Legal"))}</h2>${S.chat.length?`<button class="btn ghost sm" id="clearChat">${esc(T("清空对话","Clear chat"))}</button>`:`<span class="tag">${esc(T("示例对话","Example"))}</span>`}</div>
+      <div class="chat" id="chat">${chat.map(m=>`<div class="msg ${m.role==="user"?"u":"a"}"><span class="who">${esc(m.role==="user"?T("招聘顾问","Recruiter"):"Maker Legal")}</span>${esc(m.content)}</div>`).join("")}
+        ${S.chatBusy?`<div class="msg a" id="streaming"><span class="who">Maker Legal</span><span class="dot3"><i></i><i></i><i></i></span></div>`:""}</div>
+      ${S.chatErr?`<p class="src-note warn">${esc(S.chatErr)}</p>`:""}
+      <div class="chips">${QUICKQ.map(q=>`<button class="chip" data-q="${esc(tx(q))}">${esc(tx(q))}</button>`).join("")}</div>
+      <form id="chatForm" class="row" style="flex-wrap:nowrap">
+        <input type="text" id="chatIn" placeholder="${esc(sample?T("输入问题，例如：伊利诺伊能用 AI 面试吗？","Ask, e.g. can we use AI interviews in Illinois?"):T("AI 不可用：当前只能查看示例对话","AI unavailable: only the example is shown"))}" ${canChat?"":"disabled"} aria-label="${esc(T("问题","Question"))}">
+        <button class="btn" ${canChat?"":"disabled"}>${esc(T("发送","Send"))}</button>
+      </form>
+      <p class="faint" style="font-size:13px">${esc(T(`回答依据：公司制度 ${POLICIES.length} 条 + 合规矩阵 ${STATES.length*TOPICS.length} 条 + 联邦基线。没有依据的问题会转给法务。`,`Sources: ${POLICIES.length} company policies + ${STATES.length*TOPICS.length} matrix entries + federal baseline. Questions without a source go to Legal.`))}</p>
+    </section>
+    <section class="card stack">
+      <div class="card-h" style="margin:0"><h2>${esc(T("提交需求","Submit a request"))}</h2><span class="faint" style="font-size:13px">${esc(T("按规则分流，规则见下方","Routed by rules shown below"))}</span></div>
+      <form id="intakeForm" class="stack">
+        <div class="row" style="flex-wrap:nowrap;gap:10px">
+          <label class="f" style="flex:2" for="inReq">${esc(T("提出人（业务对接人）","Requester (business POC)"))}<select id="inReq">${REQUESTERS.map(k=>`<option value="${k}" ${fm.req===k?"selected":""}>${esc(PEOPLE[k].n)} · ${esc(tx(DEPT[PEOPLE[k].dept]))}</option>`).join("")}</select></label>
+          <label class="f" style="flex:1" for="inState">${esc(T("涉及州","State"))}<select id="inState">${["CA","NY","TX","IL","—"].map(k=>`<option value="${k}" ${fm.state===k?"selected":""}>${k==="—"?esc(T("不涉及 / 多州","None / multiple")):k}</option>`).join("")}</select></label>
+        </div>
+        <label class="f" for="inTitle">${esc(T("标题","Title"))}<input type="text" id="inTitle" value="${esc(fm.title)}"></label>
+        <label class="f" for="inDesc">${esc(T("描述","Details"))}<textarea id="inDesc" rows="3">${esc(fm.desc)}</textarea></label>
+        <label class="f" for="inAmt">${esc(T("涉及金额（美元，可空）","Amount at stake (USD, optional)"))}<input type="number" id="inAmt" min="0" step="1000" placeholder="0" value="${esc(fm.amount)}"></label>
+        <div class="row"><button class="btn">${esc(T("提交并分流","Submit and route"))}</button>${sample?`<button type="button" class="btn ghost" id="aiTriage" ${S.triageBusy?"disabled":""}>${esc(T("AI 检查缺失信息","AI: what's missing?"))}</button>`:""}</div>
+      </form>
+      ${S.triage?`<div class="triage"><div class="row">${pill(PRI[S.triage.pri])}<span class="tag">${esc(tx(TYPE[S.triage.type]))}</span><span class="tag">${esc(T("时限 ","SLA "))}${esc(S.triage.sla)}</span></div><p style="font-size:14px"><b>${esc(T("法务经办","Legal POC"))}</b>${T("：",": ")}${esc(pl(S.triage.ownerId))}<br><b>${esc(T("业务对接","Business POC"))}</b>${T("：",": ")}${esc(pl(S.triage.req))}</p>
+        <ul style="margin:0;padding-left:18px;font-size:14px">${S.triage.rules.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>
+        <p class="faint" style="font-size:13px">${esc(T(`已生成事项 ${S.triage.id}，见下方看板。`,`Created matter ${S.triage.id}; see the board below.`))}</p></div>`:""}
+      ${S.triageBusy?`<div class="thinking"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("AI 正在检查…","AI is checking…"))}</div>`:""}
+      ${S.triageAi?`<div class="triage"><b>${esc(T("AI 建议补问","AI suggests asking"))}</b><p style="font-size:14px">${esc(S.triageAi.summary||"")}</p><ul style="margin:0;padding-left:18px;font-size:14px">${(S.triageAi.questions||[]).map(q=>`<li>${esc(q)}</li>`).join("")}</ul>${S.triageAi.risk?`<p class="src-note warn">${esc(S.triageAi.risk)}</p>`:""}</div>`:""}
+    </section>
+  </div>
+  <section class="card">
+    <div class="card-h"><h2>${esc(T("事项看板","Matter board"))}</h2><span class="faint" style="font-size:13px">${esc(T("业务方可实时看到进度","Requesters see progress live"))}</span></div>
+    <div class="board">${cols.map(c=>{const ms=S.matters.filter(m=>m.status===c);return `<div class="col"><h3>${esc(tx(MSTATUS[c]))}<span>${ms.length}</span></h3>${ms.map(m=>`<div class="mcard ${S.newIds.includes(m.id)?"new":""}"><span class="id">${m.id} · ${esc(tx(DEPT[m.dept]))} · ${m.state}</span><b>${esc(tx(m.t))}</b><span class="row" style="gap:6px">${pill(PRI[m.pri])}<span class="tag">${esc(tx(TYPE[m.type]))}</span><span class="faint mono" style="font-size:12px">${md(m.due)}</span></span><span class="faint" style="font-size:12.5px">${esc(pocLine(m.req,m.owner))}</span>${m.firm?`<span class="faint" style="font-size:13px">${esc(T("外包：","Counsel: "))}${esc(m.firm)}</span>`:""}</div>`).join("")||`<span class="faint" style="font-size:13px">${esc(T("暂无","None"))}</span>`}</div>`}).join("")}</div>
+  </section>`;
+}
+function chatContext(){
+  const lines=[];
+  for(const R of Object.values(REGIONS)) for(const s of R.cols) for(const t of R.topics){ const c=R.mx[s.k][t.k]; lines.push(`[${s.k}-${tx(t.n)}] ${tx(c.rule)} (${T("依据","source")}: ${tx(c.cite)}; ${T("状态","status")}: ${tx(STATUS[c.s][0])}${c.note?"; "+tx(c.note):""})`) }
+  return `You are the AI assistant for the legal team of ${CO.name}, answering questions from recruiters and account managers. Company: ${CO.biz.en}, HQ California, workers in CA, NY, TX, IL; EOR workers in the UK and Ontario; Germany launching; sources candidates from the EU. ${CO.tools}
+Rules:
+- Answer ONLY from the company policies, compliance matrix and federal baseline below. End each claim with its source in square brackets, e.g. [LP-04] or [CA-${tx(TOPICS[4].n)}].
+- If the sources are not enough, the question involves a specific dispute, or it needs legal judgment, say clearly that they should submit a request to Legal. Do not guess.
+- Reply in ${outLang()}. Give the conclusion first, then 2–4 concrete steps. Keep it under ${L==="en"?"120 words":"180 Chinese characters"}. No Markdown headings or bold.
+- This is internal guidance, not legal advice.
+
+Legal POCs by matter type (tell people whom to contact when they must go to Legal): contracts ${plEn("priya")}; employment and immigration ${plEn("marcus")}; privacy and compliance ${plEn("elena")}; disputes and litigation ${plEn("dana")}; anything else ${plEn("sam")}.
+
+Company policies:
+${POLICIES.map(p=>`[${p[0]}] ${tx(p[1])}`).join("\n")}
+
+Compliance matrix:
+${lines.join("\n")}
+
+Federal baseline:
+${FEDERAL.map(f=>`[${T("联邦","Federal")}-${f[0]}] ${tx(f[1])} (${f[2]})`).join("\n")}`;
+}
+async function ask(q){
+  if(!sample||S.chatBusy||!q.trim()) return;
+  S.chat.push({role:"user",content:q.trim()}); S.chatBusy=true; S.chatErr=""; render(); scrollChat();
+  try{
+    const turns=[{role:"user",content:chatContext()},...S.chat.slice(-8)];
+    const {text}=await sample(turns,{cache:false,modelTier:"quick",onText:({text})=>{const el=$("#streaming");if(el){el.innerHTML=`<span class="who">Maker Legal</span>`+esc(text);scrollChat()}}});
+    S.chat.push({role:"assistant",content:text});
+  }catch(e){ aiDown(e); S.chatErr=errMsg(e); if(e?.text) S.chat.push({role:"assistant",content:e.text+T("（中断）"," (interrupted)")}) }
+  finally{ S.chatBusy=false; render(); scrollChat() }
+}
+function scrollChat(){ const c=$("#chat"); if(c) c.scrollTop=c.scrollHeight }
+function readIntake(){ const req=$("#inReq").value; return {req,dept:PEOPLE[req].dept,state:$("#inState").value,title:$("#inTitle").value.trim(),desc:$("#inDesc").value.trim(),amount:$("#inAmt").value} }
+function saveForm(){ S.form={...readIntake(),lang:L,pristine:false} }
+function bindIntake(){
+  scrollChat();
+  document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{ if(sample) ask(b.dataset.q); else { const i=$("#chatIn"); if(i) i.value=b.dataset.q } });
+  $("#chatForm").onsubmit=e=>{e.preventDefault();ask($("#chatIn").value)};
+  $("#clearChat")&&($("#clearChat").onclick=()=>{S.chat=[];S.chatErr="";render()});
+  ["#inReq","#inState","#inTitle","#inDesc","#inAmt"].forEach(s=>$(s).addEventListener("input",saveForm));
+  $("#intakeForm").onsubmit=e=>{e.preventDefault(); saveForm(); const d=readIntake(); if(!d.title){$("#inTitle").focus();return}
+    const tr=triageRules(d); const id="M-"+(1050+S.newIds.length);
+    const due=new Date(TODAY.getTime()+(tr.pri==="crit"?1:tr.pri==="high"?2:5)*86400000).toISOString().slice(0,10);
+    S.matters.unshift({id,req:d.req,owner:tr.ownerId,t:d.title,type:tr.type,dept:d.dept,pri:tr.pri,status:"new",due,state:d.state}); S.newIds.push(id);
+    S.triage={...tr,id,req:d.req}; render() };
+  $("#aiTriage")&&($("#aiTriage").onclick=async()=>{ saveForm(); const d=readIntake(); S.triageBusy=true; S.triageAi=null; render();
+    try{ S.triageAi=await sample.json(`You triage requests for the legal team of a US EOR and recruiting company.
+Requester: ${plEn(d.req)}, team ${DEPT[d.dept].en}; state: ${d.state}; title: ${d.title}; details: ${d.desc}; amount: ${d.amount||"not given"}
+Reply with ONLY JSON, all text in ${outLang()}: {"summary": one-sentence summary of the request, "questions": array of 2-4 specific questions Legal needs answered before acting, "risk": the single most important legal risk (may cite a US state or federal law), or "" if none}`,{modelTier:"quick"}) }
+    catch(e){ aiDown(e); S.triageAi={summary:errMsg(e),questions:[]} }
+    finally{ S.triageBusy=false; render() } });
+}
+
+/* ============ VIEW: COUNSEL ============ */
+function lineAmt(l){ return l.amt!=null?l.amt:l.rate*l.h }
+function precheck(){
+  const flags={}; const add=(i,cls)=>{flags[i]=flags[i]==="flag"?"flag":cls};
+  const perDay={};
+  INVOICE.lines.forEach((l,i)=>{
+    if(l.role!=="Expense"&&l.rate>OCG.rates[l.role]) add(i,"flag");
+    if(l.role==="Expense"&&/business class/i.test(l.desc)) add(i,"flag");
+    if(l.act==="A110"&&l.role!=="Paralegal") add(i,"flag");
+    if((l.desc.match(/;/g)||[]).length>=2) add(i,"warnc");
+    if(l.h){ const k=l.d+l.tk; perDay[k]=(perDay[k]||0)+l.h }
+  });
+  INVOICE.lines.forEach((l,i)=>{ if(l.h&&perDay[l.d+l.tk]>OCG.maxDay) add(i,"warnc") });
+  return flags;
+}
+const roleLabel = r => ({Partner:T("合伙人","Partner"),Associate:T("律师","Associate"),Paralegal:T("律师助理","Paralegal"),Expense:T("费用","Expense")})[r]||r;
+function vCounsel(){
+  const total=INVOICE.lines.reduce((a,l)=>a+lineAmt(l),0); const pf=precheck(); const inv=S.inv;
+  return `
+  <div class="page-head"><div><span class="eyebrow">${esc(T("模块 04","Module 04"))}</span><h1>${esc(T("外部律所管理","Outside counsel"))}</h1>
+  <p class="lead">${esc(T("管理合作律所、委托事项和预算。律所账单先按外部律所指引（OCG）做规则预检，再由 AI 逐行审查，给出核减建议。","Manage panel firms, engagements and budgets. Invoices get a rules-based check against the Outside Counsel Guidelines (OCG), then a line-by-line AI review with recommended cuts."))}</p></div></div>
+  <div class="grid-5-7">
+    <section class="card">
+      <div class="card-h"><h2>${esc(T("合作律所","Panel firms"))}</h2><span class="faint" style="font-size:13px">${esc(T(`${FIRMS.length} 家 · 年初至今`,`${FIRMS.length} firms · YTD`))}</span></div>
+      ${FIRMS.map(f=>{const over=f.spent>f.budget;return `<div class="firm"><span class="nm">${esc(f.n)}</span><span class="num mono" style="text-align:right;${over?"color:var(--crit)":""}">${money(f.spent)}</span>
+        <span class="meta">${esc(tx(f.area))} · ${esc(tx(f.rates))}${f.note?" · "+esc(tx(f.note)):""}</span><span class="meta num" style="text-align:right">${esc(T("预算 ","Budget "))}${money(f.budget)}</span>
+        <span class="meta">${esc(T("内部对接：","Internal POC: "))}${esc(pn(f.poc))} · ${f.matters.length?esc(T("在办：","Active: "))+f.matters.join(", "):esc(T("当前无在办事项","No active matters"))} · ${esc(T("评分","Rating"))} ${f.score}/5</span><span class="meta" style="text-align:right">${Math.round(f.spent/f.budget*100)}%</span></div>`}).join("")}
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>${esc(T("外部律所指引（OCG）","Outside Counsel Guidelines"))}</h2><span class="tag">${esc(T("适用于全部合作律所","Applies to all firms"))}</span></div>
+      <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px">${OCG.rules.map(r=>`<li>${esc(tx(r))}</li>`).join("")}</ul>
+      <h3 style="margin-top:18px">${esc(T("预算与支出","Budget vs. spend"))}</h3><div style="margin-top:10px">${spendBars()}</div>
+    </section>
+  </div>
+  <section class="card">
+    <div class="card-h"><div><h2>${esc(T("账单审查 · ","Invoice review · "))}${esc(INVOICE.no)}</h2><span class="faint" style="font-size:13px">${esc(INVOICE.firm)} · ${esc(tx(INVOICE.matter))} · ${esc(INVOICE.period)}</span></div>
+      <div class="row"><span class="num mono">${esc(T("合计 ","Total "))}${money(total)}</span><button class="btn accent" id="runInv" ${S.invBusy?"disabled":""}>${esc(sample?T("AI 逐行审查","Review with AI"):T("查看预置审查结果","Show preset review"))}</button></div></div>
+    <div class="tbl-wrap"><table class="inv">
+      <thead><tr><th>#</th><th>${esc(T("日期","Date"))}</th><th>${esc(T("人员","Timekeeper"))}</th><th class="num">${esc(T("费率","Rate"))}</th><th class="num">${esc(T("小时","Hours"))}</th><th>UTBMS</th><th>${esc(T("工作描述","Description"))}</th><th class="num">${esc(T("金额","Amount"))}</th></tr></thead>
+      <tbody>${INVOICE.lines.map((l,i)=>`<tr><td class="mono">${i+1}</td><td class="mono num">${l.d}</td><td>${esc(l.tk)}<br><span class="faint" style="font-size:13px">${esc(roleLabel(l.role))}</span></td>
+        <td class="num mono ${l.rate&&l.rate>OCG.rates[l.role]?"flag":""}">${l.rate?money(l.rate):"—"}</td><td class="num mono">${l.h??"—"}</td><td class="mono num">${l.task} ${l.act}</td>
+        <td class="${pf[i]||""}" style="min-width:220px">${esc(l.desc)}</td><td class="num mono">${money(lineAmt(l))}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <p class="faint" style="font-size:13px;margin-top:8px">${esc(T("红色 / 黄色底色是规则预检结果（不需要 AI）：费率超上限、行政事务、差旅超标、打包计时、单日超时。","Red and yellow cells come from the rules check (no AI): rate over cap, clerical work, travel over policy, block billing, long days."))}</p>
+    ${S.invBusy?`<div class="thinking"><span class="dot3"><i></i><i></i><i></i></span>${esc(T("AI 正在对照 OCG 逐行审查…","The AI is checking each line against the OCG…"))}</div>`:""}
+    ${S.invErr?`<p class="src-note warn" style="margin-top:10px">${esc(S.invErr)}</p>`:""}
+    ${inv?invResult(inv,total):""}
+  </section>`;
+}
+function invResult(inv,total){
+  const cut=inv.items.reduce((a,f)=>a+(Number(f.cut)||0),0);
+  return `<div style="margin-top:16px" class="stack">
+    <div class="row" style="justify-content:space-between"><h3>${esc(inv.source==="ai"?T("AI 审查意见","AI review"):T("预置审查意见（未调用 AI）","Preset review (no AI call)"))}</h3>
+      ${cut?`<span class="num mono">${esc(T("建议核减 ","Recommended cut "))}${money(cut)} · ${esc(T("建议支付 ","Pay "))}${money(total-cut)}</span>`:""}</div>
+    <div class="flags">${inv.items.map(f=>`<div class="flagi">${pill(SEV[f.sev]||SEV.medium)}<span><b>${esc(T(`第 ${f.line} 行 · `,`Line ${f.line} · `))}${esc(tx(f.rule))}</b><br>${esc(tx(f.issue))}<br><span class="faint">${esc(tx(f.fix))}</span></span><span class="num mono">${f.cut?"−"+money(f.cut):""}</span></div>`).join("")}</div>
+    <p class="faint" style="font-size:13px">${esc(T("核减需由法务确认后发给律所；律所可在 15 天内提出异议。","Legal confirms cuts before sending them to the firm; the firm has 15 days to dispute."))}</p></div>`;
+}
+const presetInv = ()=>({source:"preset",items:PRESET_INVOICE});
+async function runInv(){
+  S.invErr="";
+  if(!sample){ S.inv=presetInv(); render(); return }
+  S.invBusy=true; render();
+  try{
+    const out=await sample.json(`You review law-firm invoices for the in-house legal team of a US EOR / recruiting company.
+Outside Counsel Guidelines (OCG):
+${OCG.rules.map(r=>"- "+r.en).join("\n")}
+Rate caps: Partner $650/h, Associate $425/h, Paralegal $225/h. Economy airfare reference SFO–LAX: about $250.
+
+Invoice ${INVOICE.no} from ${INVOICE.firm}, matter ${INVOICE.matter.en}:
+${INVOICE.lines.map((l,i)=>`${i+1}. ${l.d} | ${l.tk} (${l.role}) | rate ${l.rate??"-"} | hours ${l.h??"-"} | ${l.task} ${l.act} | ${l.desc} | amount ${lineAmt(l)}`).join("\n")}
+
+Find every OCG violation or billing concern. Reply with ONLY a JSON array; each item:
+{"line": line number, "sev": "high"|"medium"|"low", "rule": short rule name in ${outLang()}, "issue": what is wrong, in ${outLang()} (short), "fix": the recommended action in ${outLang()}, "cut": recommended reduction in USD as a number (0 if you recommend holding payment or asking for clarification instead)}
+Compute reductions precisely from rate x hours, and do not cut the same dollars twice.`,{modelTier:"default"});
+    const items=(Array.isArray(out)?out:[]).filter(x=>x&&x.line).map(x=>({line:String(x.line),sev:SEV[x.sev]?x.sev:"medium",rule:String(x.rule||""),issue:String(x.issue||""),fix:String(x.fix||""),cut:Number(x.cut)||0}));
+    if(!items.length) throw {code:"empty_completion"};
+    S.inv={source:"ai",items};
+  }catch(e){ aiDown(e); S.invErr=errMsg(e); if(!S.inv) S.inv=presetInv() }
+  finally{ S.invBusy=false; render() }
+}
+function bindCounsel(){ $("#runInv").onclick=runInv }
+
+/* boot */
+if(location.hash==="#radar") S.scope="radar";
+render(); initAI();
+</script>
+
+</body>
+</html>
